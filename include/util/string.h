@@ -4,7 +4,7 @@
 #include <stddef.h>
 
 struct string {
-	char *text;
+	char *data;
 	size_t len, cap;
 };
 

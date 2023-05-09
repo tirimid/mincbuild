@@ -5,6 +5,7 @@
 
 struct arraylist {
 	void **data;
+	size_t *data_sizes;
 	size_t size, cap;
 };
 

@@ -29,7 +29,7 @@ struct conf {
 	} deps;
 };
 
-struct conf conf_from_file(char const *conf_fpath);
+struct conf conf_from_file(char const *file);
 void conf_destroy(struct conf *conf);
 
 #endif

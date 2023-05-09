@@ -1,1 +1,7 @@
-gcc -std=c99 -pedantic -Iinclude -o mincbuild src/*.c src/**/*.c -ljson-c
+CC=gcc
+CFLAGS="-std=c99 -pedantic -Iinclude"
+LIBS="-ljson-c -lpthread"
+
+OUT_NAME=mincbuild
+
+$CC $CFLAGS -o $OUT_NAME src/*.c src/**/*.c $LIBS
