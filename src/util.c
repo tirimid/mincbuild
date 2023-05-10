@@ -137,6 +137,8 @@ void log_fail(char const *fmt, ...)
 
 char const *file_ext(char const *file)
 {
+	char const *ext = strrchr(file, '.');
+	return ext && ext != file ? ext + 1 : file + strlen(file);
 }
 
 char *file_read(char const *file, size_t *out_size)
