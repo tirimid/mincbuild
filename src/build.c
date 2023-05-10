@@ -123,6 +123,9 @@ static void *compile_worker(void *vp_arg)
 		char *cmd_san = sanitize_cmd(cmd_unsan);
 		free(cmd_unsan);
 
+		file_mkdir_p(obj);
+		file_rmdir(obj);
+
 		int rc = system(cmd_san);
 		free(cmd_san);
 		
@@ -219,6 +222,9 @@ void build_link(struct conf const *conf, struct build_info const *info)
 	string_destroy(&cmd);
 	char *cmd_san = sanitize_cmd(cmd_unsan);
 	free(cmd_unsan);
+
+	file_mkdir_p(conf->proj.output);
+	file_rmdir(conf->proj.output);
 
 	int rc = system(cmd_san);
 	free(cmd_san);

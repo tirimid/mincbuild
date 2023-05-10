@@ -1,12 +1,18 @@
 #include "util.h"
 
+#define _POSIX_C_SOURCE 2
 #include <stdio.h>
+#undef _POSIX_C_SOURCE
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdarg.h>
 #include <ctype.h>
 
-#define ESCAPABLE " \t\n\v\f\r\\'\""
+#include <sys/stat.h>
+
+#define ESCAPABLE " \t\n\v\f\r\\'\"<>;"
+#define SANITIZE_ESCAPE "'\"<>;"
 
 struct arraylist arraylist_create(void)
 {
@@ -177,6 +183,10 @@ char *file_read(char const *file, size_t *out_size)
 
 void file_mkdir_p(char const *dir)
 {
+	struct stat s;
+	if (!stat(dir, &s))
+		return;
+	
 	char *cmd = malloc(10 + strlen(dir));
 	sprintf(cmd, "mkdir -p %s", dir);
 	char *san_cmd = sanitize_cmd(cmd);
@@ -188,6 +198,10 @@ void file_mkdir_p(char const *dir)
 
 void file_rmdir(char const *dir)
 {
+	struct stat s;
+	if (!stat(dir, &s))
+		return;
+	
 	char *cmd = malloc(7 + strlen(dir));
 	sprintf(cmd, "rmdir %s", dir);
 	char *san_cmd = sanitize_cmd(cmd);
@@ -203,16 +217,14 @@ char *sanitize_cmd(char const *cmd)
 	struct string san_cmd = string_create();
 
 	for (size_t i = 0; i < cmd_len; ++i) {
-		if (cmd[i] == ';')
-			string_push_c_str(&san_cmd, "\\;");
-		else if (cmd[i] == '\'' || cmd[i] == '"') {
+		if (strchr(SANITIZE_ESCAPE, cmd[i])) {
 			string_push_ch(&san_cmd, '\\');
 			string_push_ch(&san_cmd, cmd[i]);
 		} else if (cmd[i] == '\\') {
 			char next = cmd[i + 1];
 			string_push_ch(&san_cmd, '\\');
 			string_push_ch(&san_cmd, strchr(ESCAPABLE, next) ? next : '\\');
-			++i;
+			i += strchr(ESCAPABLE, next) ? 1 : 0;
 		} else
 			string_push_ch(&san_cmd, cmd[i]);
 	}
