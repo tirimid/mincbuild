@@ -70,6 +70,16 @@ static bool json_get_bool(json_object const *json, char const *sct,
 	return json_object_get_boolean(key_obj);
 }
 
+static int json_get_int(json_object const *json, char const *sct,
+                        char const *key, char const *file)
+{
+	json_object *key_obj = json_get(json, sct, key, file);
+	if (!json_object_is_type(key_obj, json_type_int))
+		log_fail("in %s, '%s.%s' must be an int", file, sct, key);
+
+	return json_object_get_int(key_obj);
+}
+
 struct conf conf_from_file(char const *file)
 {
 	char *file_conts = file_read(file, NULL);
@@ -85,6 +95,7 @@ struct conf conf_from_file(char const *file)
 	conf.tc_info.cc_conly_flag = json_get_str(json, "tc-info", "cc-conly-flag", file);
 	conf.tc_info.cc_inc_flag = json_get_str(json, "tc-info", "cc-inc-flag", file);
 	conf.tc_info.cc_cobj_flag = json_get_str(json, "tc-info", "cc-cobj-flag", file);
+	conf.tc_info.cc_success_rc = json_get_int(json, "tc-info", "cc-success-rc", file);
 	conf.proj.src_dir = json_get_str(json, "proj", "src-dir", file);
 	conf.proj.inc_dir = json_get_str(json, "proj", "inc-dir", file);
 	conf.proj.lib_dir = json_get_str(json, "proj", "lib-dir", file);
@@ -99,9 +110,10 @@ struct conf conf_from_file(char const *file)
 		conf.tc.ldflags = json_get_str(json, "tc", "ldflags", file);
 		conf.tc_info.ld_lib_flag = json_get_str(json, "tc-info", "ld-lib-flag", file);
 		conf.tc_info.ld_lbin_flag = json_get_str(json, "tc-info", "ld-lbin-flag", file);
+		conf.tc_info.ld_success_rc = json_get_int(json, "tc-info", "ld-success-rc", file);
 		conf.proj.output = json_get_str(json, "proj", "output", file);
 		conf.deps.incs = json_get_str_list(json, "deps", "incs", file);
-		conf.deps.libs = json_get_str_list(json, "deps", "incs", file);
+		conf.deps.libs = json_get_str_list(json, "deps", "libs", file);
 	}
 
 	json_object_put(json);

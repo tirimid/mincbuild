@@ -14,6 +14,7 @@ struct conf {
 	struct {
 		char *cc_conly_flag, *cc_inc_flag, *cc_cobj_flag;
 		char *ld_lib_flag, *ld_lbin_flag;
+		int cc_success_rc, ld_success_rc;
 	} tc_info;
 
 	struct {

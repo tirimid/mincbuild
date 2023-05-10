@@ -29,7 +29,7 @@ your Windows machine.
 
 Software / system dependencies are:
 * `json-c`, `pthread` C libraries
-* `mkdir`, `rmdir`, `grep` programs available on system
+* `mkdir`, `rmdir`, `grep`, `nproc` programs available on system
 * A shell environment for program execution
 
 ## Building

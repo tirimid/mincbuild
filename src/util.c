@@ -88,6 +88,18 @@ void string_push_c_str(struct string *s, char const *c_str)
 		string_push_ch(s, *c);
 }
 
+void string_push_c_str_n(struct string *s, ...)
+{
+	va_list args;
+	va_start(args, s);
+
+	char const *cs;
+	while (cs = va_arg(args, char *))
+		string_push_c_str(s, cs);
+	
+	va_end(args);
+}
+
 char *string_to_c_str(struct string const *s)
 {
 	char *c_str = malloc(s->len + 1);
