@@ -2,6 +2,7 @@
 
 #include <fts.h>
 #include <sys/stat.h>
+#include <pthread.h>
 
 struct build_info build_info_get(struct conf const *conf)
 {

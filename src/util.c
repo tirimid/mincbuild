@@ -100,7 +100,7 @@ char *string_to_c_str(struct string const *s)
 
 void log_info(char const *fmt, ...)
 {
-	printf("\33[106;30m| info |\33[0m ");
+	printf("\33[1;36minfo\33[0m: ");
 	
 	va_list args;
 	va_start(args, fmt);
@@ -112,7 +112,7 @@ void log_info(char const *fmt, ...)
 
 void log_warn(char const *fmt, ...)
 {
-	printf("\33[103;30m| warn |\33[0m ");
+	printf("\33[1;33mwarn\33[0m: ");
 	
 	va_list args;
 	va_start(args, fmt);
@@ -124,7 +124,7 @@ void log_warn(char const *fmt, ...)
 
 void log_fail(char const *fmt, ...)
 {
-	printf("\33[101;97m| fail |\33[0m ");
+	printf("\33[1;31mfail\33[0m: ");
 	
 	va_list args;
 	va_start(args, fmt);
@@ -165,7 +165,10 @@ void file_mkdir_p(char const *dir)
 {
 	char *cmd = malloc(10 + strlen(dir));
 	sprintf(cmd, "mkdir -p %s", dir);
-	safe_system(cmd);
+	char *san_cmd = sanitize_cmd(cmd);
+	system(san_cmd);
+	
+	free(san_cmd);
 	free(cmd);
 }
 
@@ -173,34 +176,34 @@ void file_rmdir(char const *dir)
 {
 	char *cmd = malloc(7 + strlen(dir));
 	sprintf(cmd, "rmdir %s", dir);
-	safe_system(cmd);
+	char *san_cmd = sanitize_cmd(cmd);
+	system(san_cmd);
+	
+	free(san_cmd);
 	free(cmd);
 }
 
-int safe_system(char const *cmd)
+char *sanitize_cmd(char const *cmd)
 {
 	size_t cmd_len = strlen(cmd);
-	struct string cmd_real = string_create();
+	struct string san_cmd = string_create();
 
 	for (size_t i = 0; i < cmd_len; ++i) {
 		if (cmd[i] == ';')
-			string_push_c_str(&cmd_real, "\\;");
+			string_push_c_str(&san_cmd, "\\;");
 		else if (cmd[i] == '\'' || cmd[i] == '"') {
-			string_push_ch(&cmd_real, '\\');
-			string_push_ch(&cmd_real, cmd[i]);
+			string_push_ch(&san_cmd, '\\');
+			string_push_ch(&san_cmd, cmd[i]);
 		} else if (cmd[i] == '\\') {
 			char next = cmd[i + 1];
-			string_push_ch(&cmd_real, '\\');
-			string_push_ch(&cmd_real, strchr(ESCAPABLE, next) ? next : '\\');
+			string_push_ch(&san_cmd, '\\');
+			string_push_ch(&san_cmd, strchr(ESCAPABLE, next) ? next : '\\');
 			++i;
 		} else
-			string_push_ch(&cmd_real, cmd[i]);
+			string_push_ch(&san_cmd, cmd[i]);
 	}
 	
-	char *cmd_real_cs = string_to_c_str(&cmd_real);
-	int rc = system(cmd_real_cs);
-	string_destroy(&cmd_real);
-	free(cmd_real_cs);
-
-	return rc;
+	char *san_cmd_cs = string_to_c_str(&san_cmd);
+	string_destroy(&san_cmd);
+	return san_cmd_cs;
 }

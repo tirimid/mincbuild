@@ -35,8 +35,6 @@ char *file_read(char const *file, size_t *out_size);
 void file_mkdir_p(char const *dir);
 void file_rmdir(char const *dir);
 
-// please read note regarding `system()` sanitization under "Vulnerability note"
-// in the project's `README.md`.
-int safe_system(char const *cmd);
+char *sanitize_cmd(char const *cmd);
 
 #endif
