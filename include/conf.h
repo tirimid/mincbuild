@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include "util/arraylist.h"
+#include "util.h"
 
 struct conf {
 	struct {
@@ -30,6 +30,7 @@ struct conf {
 };
 
 struct conf conf_from_file(char const *file);
+void conf_validate(struct conf const *conf);
 void conf_destroy(struct conf *conf);
 
 #endif

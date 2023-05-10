@@ -4,4 +4,4 @@ LIBS="-ljson-c -lpthread"
 
 OUT_NAME=mincbuild
 
-$CC $CFLAGS -o $OUT_NAME src/*.c src/**/*.c $LIBS
+$CC $CFLAGS -o $OUT_NAME src/*.c $LIBS

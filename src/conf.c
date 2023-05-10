@@ -2,14 +2,11 @@
 
 #include <stdbool.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <stddef.h>
 #include <string.h>
 
 #include <json-c/json.h>
-
-#include "util/log.h"
-#include "util/arraylist.h"
+#include <sys/stat.h>
 
 static json_object *json_get(json_object const *json, char const *sct,
                              char const *key, char const *file)
@@ -75,19 +72,8 @@ static bool json_get_bool(json_object const *json, char const *sct,
 
 struct conf conf_from_file(char const *file)
 {
-	FILE *fp = fopen(file, "rb");
-	if (!fp)
-		log_fail("cannot open %s", file);
-	
-	fseek(fp, 0, SEEK_END);
-	size_t flen = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	
-	char *fconts = malloc(flen + 1);
-	fread(fconts, 1, flen, fp);
-	fconts[flen] = 0;
-
-	json_object *json = json_tokener_parse(fconts);
+	char *file_conts = file_read(file, NULL);
+	json_object *json = json_tokener_parse(file_conts);
 	if (!json)
 		log_fail("malformed JSON in %s", file);
 	
@@ -119,10 +105,35 @@ struct conf conf_from_file(char const *file)
 	}
 
 	json_object_put(json);
-	free(fconts);
-	fclose(fp);
+	free(file_conts);
 	
 	return conf;
+}
+
+void conf_validate(struct conf const *conf)
+{
+	struct stat s;
+	
+	// make sure project has specified directories.
+	if (stat(conf->proj.src_dir, &s))
+		log_fail("no source directory (%s)", conf->proj.src_dir);
+
+	if (stat(conf->proj.inc_dir, &s)) {
+		log_warn("no include directory (%s), creating", conf->proj.inc_dir);
+		file_mkdir_p(conf->proj.inc_dir);
+	}
+
+	if (stat(conf->proj.lib_dir, &s)) {
+		log_warn("no build directory (%s), creating", conf->proj.lib_dir);
+		file_mkdir_p(conf->proj.lib_dir);
+	}
+
+	// make sure system has specified compiler and linker.
+	if (stat(conf->tc.cc, &s))
+		log_fail("could not find compiler (%s) on system", conf->tc.cc);
+
+	if (conf->proj.produce_output && stat(conf->tc.ld, &s))
+		log_fail("could not find linker (%s) on system", conf->tc.ld);
 }
 
 void conf_destroy(struct conf *conf)
