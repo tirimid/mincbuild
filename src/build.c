@@ -24,13 +24,70 @@
 struct thread_arg {
 	size_t start, cnt;
 	struct conf const *conf;
-	struct build_info const *info;
+	struct build_info *info;
 	int *out_rc;
+};
+
+struct work_info {
+	int cnt;
+	int *rcs;
+	struct thread_arg *args;
+	pthread_t *workers;
 };
 
 static size_t files_compiled;
 
-static struct arraylist ext_files(char *dir, struct arraylist const *exts)
+static int
+get_worker_cnt(size_t task_cnt)
+{
+	FILE *fp = popen("nproc", "r");
+	if (!fp)
+		log_fail("failed to popen() nproc");
+
+	char buf[32] = {0};
+	int worker_cnt = atoi(fgets(buf, 32, fp));
+	if (worker_cnt == 0)
+		log_fail("no workers available for task");
+	
+	pclose(fp);
+
+	return task_cnt < worker_cnt ? task_cnt : worker_cnt;
+}
+
+static struct work_info
+work_info_create(struct conf const *conf, struct build_info *info,
+                 size_t task_cnt)
+{
+	int cnt = get_worker_cnt(task_cnt);
+	
+	struct work_info winfo = {
+		.cnt = cnt,
+		.rcs = malloc(cnt * sizeof(int)),
+		.args = malloc(cnt * sizeof(struct thread_arg)),
+		.workers = malloc(cnt * sizeof(pthread_t)),
+	};
+
+	for (int i = 0; i < cnt; ++i) {
+		winfo.args[i] = (struct thread_arg){
+			.conf = conf,
+			.info = info,
+			.out_rc = &winfo.rcs[i],
+		};
+	}
+
+	return winfo;
+}
+
+static void
+work_info_destroy(struct work_info *winfo)
+{
+	free(winfo->rcs);
+	free(winfo->args);
+	free(winfo->workers);
+}
+
+static struct arraylist
+ext_files(char *dir, struct arraylist const *exts)
 {
 	unsigned long fts_opts = FTS_LOGICAL | FTS_COMFOLLOW | FTS_NOCHDIR;
 	char *const fts_dirs[] = {dir, NULL};
@@ -64,7 +121,8 @@ static struct arraylist ext_files(char *dir, struct arraylist const *exts)
 	return files;
 }
 
-struct build_info build_info_get(struct conf const *conf)
+struct build_info
+build_info_get(struct conf const *conf)
 {
 	struct build_info info = {
 		.srcs = ext_files(conf->proj.src_dir, &conf->proj.src_exts),
@@ -88,15 +146,17 @@ struct build_info build_info_get(struct conf const *conf)
 	return info;
 }
 
-void build_info_destroy(struct build_info *info)
+void
+build_info_destroy(struct build_info *info)
 {
 	arraylist_destroy(&info->srcs);
 	arraylist_destroy(&info->hdrs);
 	arraylist_destroy(&info->objs);
 }
 
-static bool chk_inc_rebuild(struct build_info const *info, char const *path,
-                            struct conf const *conf, time_t obj_mt)
+static bool
+chk_inc_rebuild(struct build_info const *info, char const *path,
+                struct conf const *conf, time_t obj_mt)
 {
 	char *path_san = sanitize_cmd(path);
 	struct arraylist incs = arraylist_create();
@@ -169,9 +229,14 @@ static bool chk_inc_rebuild(struct build_info const *info, char const *path,
 	return rebuild;
 }
 
-void build_prune(struct conf const *conf, struct build_info *info)
+static void *
+prune_worker(void *vp_arg)
 {
-	for (size_t i = 0; i < info->srcs.size; ++i) {
+	struct thread_arg *arg = vp_arg;
+	struct conf const *conf = arg->conf;
+	struct build_info *info = arg->info;
+
+	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
 		struct stat s_src;
 		stat(info->srcs.data[i], &s_src);
 
@@ -183,14 +248,53 @@ void build_prune(struct conf const *conf, struct build_info *info)
 		double dt = difftime(src_mt, obj_mt);
 		if (dt > 0.0 || chk_inc_rebuild(info, info->srcs.data[i], conf, obj_mt))
 			continue;
+
+		printf("\t%s\n", (char *)info->srcs.data[i]);
+
+		// mark source/object for removal in pruning.
+		free(info->srcs.data[i]);
+		free(info->objs.data[i]);
+		info->srcs.data[i] = info->objs.data[i] = NULL;
+	}
+
+	return NULL;
+}
+
+void
+build_prune(struct conf const *conf, struct build_info *info)
+{
+	struct work_info winfo = work_info_create(conf, info, info->srcs.size);
+	log_info("pruning compilation with %d worker(s)", winfo.cnt);
+
+	for (size_t i = 0; i < info->srcs.size; ++i)
+		++winfo.args[i % winfo.cnt].cnt;
+
+	// create threads to mark which sources should be pruned.
+	for (size_t i = 0; i < info->srcs.size; ++i) {
+		struct thread_arg *args = winfo.args, *prev = &args[i == 0 ? i : i - 1];
+		args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
 		
-		arraylist_rm(&info->srcs, i);
-		arraylist_rm(&info->objs, i);
-		--i;
+		if (pthread_create(&winfo.workers[i], NULL, prune_worker, &args[i]))
+			log_fail("failed on pthread_create()");
+	}
+
+	for (int i = 0; i < winfo.cnt; ++i)
+		pthread_join(winfo.workers[i], NULL);
+
+	work_info_destroy(&winfo);
+
+	// remove sources/objects marked for pruning from arraylists.
+	for (size_t i = 0; i < info->srcs.size; ++i) {
+		if (!info->srcs.data[i]) {
+			arraylist_rm_no_free(&info->srcs, i);
+			arraylist_rm_no_free(&info->objs, i);
+			--i;
+		}
 	}
 }
 
-static void *compile_worker(void *vp_arg)
+static void *
+compile_worker(void *vp_arg)
 {
 	struct thread_arg *arg = vp_arg;
 	struct conf const *conf = arg->conf;
@@ -236,59 +340,37 @@ static void *compile_worker(void *vp_arg)
 	return NULL;
 }
 
-void build_compile(struct conf const *conf, struct build_info const *info)
+void
+build_compile(struct conf const *conf, struct build_info *info)
 {
-	FILE *fp = popen("nproc", "r");
-	if (!fp)
-		log_fail("failed to popen() nproc");
-
-	// we can (hopefully) assume the user doesn't have more than ~2 billion
-	// cores to compile with, as that would be a little strange.
-	char buf[32] = {0};
-	int worker_cnt = atoi(fgets(buf, 32, fp));
-	if (worker_cnt == 0)
-		log_fail("no workers available for compilation");
-	
-	pclose(fp);
-
-	worker_cnt = info->srcs.size < worker_cnt ? info->srcs.size : worker_cnt;
+	struct work_info winfo = work_info_create(conf, info, info->srcs.size);
 	files_compiled = 0;
-	log_info("compiling project with %d worker(s)", worker_cnt);
-	
-	pthread_t *workers = malloc(sizeof(*workers) * worker_cnt);
-	int *worker_rcs = malloc(sizeof(*worker_rcs) * worker_cnt);
-	struct thread_arg *worker_args = malloc(sizeof(*worker_args) * worker_cnt);
-	
-	for (int i = 0; i < worker_cnt; ++i) {
-		size_t norm_cnt = info->objs.size / worker_cnt;
-		size_t last_cnt = info->objs.size - i * norm_cnt;
-		
-		worker_args[i] = (struct thread_arg){
-			.start = norm_cnt * i,
-			.cnt = i == worker_cnt - 1 ? last_cnt : norm_cnt,
-			.conf = conf,
-			.info = info,
-			.out_rc = &worker_rcs[i],
-		};
+	log_info("compiling project with %d worker(s)", winfo.cnt);
 
-		if (pthread_create(&workers[i], NULL, compile_worker, &worker_args[i]))
+	for (size_t i = 0; i < info->objs.size; ++i)
+		++winfo.args[i % winfo.cnt].cnt;
+
+	for (int i = 0; i < winfo.cnt; ++i) {
+		struct thread_arg *args = winfo.args, *prev = &args[i == 0 ? i : i - 1];
+		args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
+		
+		if (pthread_create(&winfo.workers[i], NULL, compile_worker, &args[i]))
 			log_fail("failed on pthread_create()");
 	}
 
-	for (int i = 0; i < worker_cnt; ++i)
-		pthread_join(workers[i], NULL);
+	for (int i = 0; i < winfo.cnt; ++i)
+		pthread_join(winfo.workers[i], NULL);
 
-	for (int i = 0; i < worker_cnt; ++i) {
-		if (worker_rcs[i] != conf->tc_info.cc_success_rc)
+	for (int i = 0; i < winfo.cnt; ++i) {
+		if (winfo.rcs[i] != conf->tc_info.cc_success_rc)
 			log_fail("compilation failed on some module(s)");
 	}
 
-	free(workers);
-	free(worker_rcs);
-	free(worker_args);
+	work_info_destroy(&winfo);
 }
 
-void build_link(struct conf const *conf, struct build_info const *info)
+void
+build_link(struct conf const *conf, struct build_info const *info)
 {
 	log_info("linking project");
 

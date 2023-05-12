@@ -8,8 +8,9 @@
 #include <json-c/json.h>
 #include <sys/stat.h>
 
-static json_object *json_get(json_object const *json, char const *sct,
-                             char const *key, char const *file)
+static json_object *
+json_get(json_object const *json, char const *sct, char const *key,
+         char const *file)
 {
 	json_object *sct_obj;
 	if (!json_object_object_get_ex(json, sct, &sct_obj))
@@ -22,8 +23,9 @@ static json_object *json_get(json_object const *json, char const *sct,
 	return key_obj;
 }
 
-static char *json_get_str(json_object const *json, char const *sct,
-                          char const *key, char const *file)
+static char *
+json_get_str(json_object const *json, char const *sct, char const *key,
+             char const *file)
 {
 	json_object *key_obj = json_get(json, sct, key, file);
 	if (!json_object_is_type(key_obj, json_type_string))
@@ -36,9 +38,9 @@ static char *json_get_str(json_object const *json, char const *sct,
 	return str;
 }
 
-static struct arraylist json_get_str_list(json_object const *json,
-                                          char const *sct, char const *key,
-                                          char const *file)
+static struct arraylist
+json_get_str_list(json_object const *json, char const *sct, char const *key,
+                  char const *file)
 {
 	json_object *key_obj = json_get(json, sct, key, file);
 	if (!json_object_is_type(key_obj, json_type_array))
@@ -60,8 +62,9 @@ static struct arraylist json_get_str_list(json_object const *json,
 	return str_list;
 }
 
-static bool json_get_bool(json_object const *json, char const *sct,
-                          char const *key, char const *file)
+static bool
+json_get_bool(json_object const *json, char const *sct, char const *key,
+              char const *file)
 {
 	json_object *key_obj = json_get(json, sct, key, file);
 	if (!json_object_is_type(key_obj, json_type_boolean))
@@ -70,8 +73,9 @@ static bool json_get_bool(json_object const *json, char const *sct,
 	return json_object_get_boolean(key_obj);
 }
 
-static int json_get_int(json_object const *json, char const *sct,
-                        char const *key, char const *file)
+static int
+json_get_int(json_object const *json, char const *sct, char const *key,
+             char const *file)
 {
 	json_object *key_obj = json_get(json, sct, key, file);
 	if (!json_object_is_type(key_obj, json_type_int))
@@ -80,7 +84,8 @@ static int json_get_int(json_object const *json, char const *sct,
 	return json_object_get_int(key_obj);
 }
 
-struct conf conf_from_file(char const *file)
+struct conf
+conf_from_file(char const *file)
 {
 	char *file_conts = file_read(file, NULL);
 	json_object *json = json_tokener_parse(file_conts);
@@ -122,7 +127,8 @@ struct conf conf_from_file(char const *file)
 	return conf;
 }
 
-void conf_validate(struct conf const *conf)
+void
+conf_validate(struct conf const *conf)
 {
 	struct stat s;
 	
@@ -148,7 +154,8 @@ void conf_validate(struct conf const *conf)
 		log_fail("could not find linker (%s) on system", conf->tc.ld);
 }
 
-void conf_destroy(struct conf *conf)
+void
+conf_destroy(struct conf *conf)
 {
 	free(conf->tc.cc);
 	free(conf->tc.cflags);

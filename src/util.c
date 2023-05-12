@@ -14,7 +14,8 @@
 #define ESCAPABLE " \t\n\v\f\r\\'\"<>;"
 #define SANITIZE_ESCAPE "'\"<>;"
 
-struct arraylist arraylist_create(void)
+struct arraylist
+arraylist_create(void)
 {
 	return (struct arraylist){
 		.data = malloc(sizeof(void *)),
@@ -24,7 +25,8 @@ struct arraylist arraylist_create(void)
 	};
 }
 
-void arraylist_destroy(struct arraylist *al)
+void
+arraylist_destroy(struct arraylist *al)
 {
 	for (size_t i = 0; i < al->size; ++i)
 		free(al->data[i]);
@@ -33,7 +35,8 @@ void arraylist_destroy(struct arraylist *al)
 	free(al->data_sizes);
 }
 
-void arraylist_add(struct arraylist *al, void const *new, size_t size)
+void
+arraylist_add(struct arraylist *al, void const *new, size_t size)
 {
 	if (al->size >= al->cap) {
 		al->cap *= 2;
@@ -47,14 +50,22 @@ void arraylist_add(struct arraylist *al, void const *new, size_t size)
 	++al->size;
 }
 
-void arraylist_rm(struct arraylist *al, size_t ind)
+void
+arraylist_rm(struct arraylist *al, size_t ind)
 {
 	free(al->data[ind]);
+	arraylist_rm_no_free(al, ind);
+}
+
+void
+arraylist_rm_no_free(struct arraylist *al, size_t ind)
+{
 	size_t mv_size = (al->size-- - ind) * sizeof(void *);
 	memmove(al->data + ind, al->data + ind + 1, mv_size);
 }
 
-struct arraylist arraylist_copy(struct arraylist const *al)
+struct arraylist
+arraylist_copy(struct arraylist const *al)
 {
 	struct arraylist cp = arraylist_create();
 
@@ -64,7 +75,8 @@ struct arraylist arraylist_copy(struct arraylist const *al)
 	return cp;
 }
 
-struct string string_create(void)
+struct string
+string_create(void)
 {
 	return (struct string){
 		.data = malloc(1),
@@ -73,12 +85,14 @@ struct string string_create(void)
 	};
 }
 
-void string_destroy(struct string *s)
+void
+string_destroy(struct string *s)
 {
 	free(s->data);
 }
 
-void string_push_ch(struct string *s, char ch)
+void
+string_push_ch(struct string *s, char ch)
 {
 	if (s->len >= s->cap) {
 		s->cap *= 2;
@@ -88,13 +102,15 @@ void string_push_ch(struct string *s, char ch)
 	s->data[s->len++] = ch;
 }
 
-void string_push_c_str(struct string *s, char const *c_str)
+void
+string_push_c_str(struct string *s, char const *c_str)
 {
 	for (char const *c = c_str; *c; ++c)
 		string_push_ch(s, *c);
 }
 
-void string_push_c_str_n(struct string *s, ...)
+void
+string_push_c_str_n(struct string *s, ...)
 {
 	va_list args;
 	va_start(args, s);
@@ -106,7 +122,8 @@ void string_push_c_str_n(struct string *s, ...)
 	va_end(args);
 }
 
-char *string_to_c_str(struct string const *s)
+char *
+string_to_c_str(struct string const *s)
 {
 	char *c_str = malloc(s->len + 1);
 	
@@ -116,7 +133,8 @@ char *string_to_c_str(struct string const *s)
 	return c_str;
 }
 
-void log_info(char const *fmt, ...)
+void
+log_info(char const *fmt, ...)
 {
 	printf("\33[1;36minfo\33[0m: ");
 	
@@ -128,7 +146,8 @@ void log_info(char const *fmt, ...)
 	putc('\n', stdout);
 }
 
-void log_warn(char const *fmt, ...)
+void
+log_warn(char const *fmt, ...)
 {
 	printf("\33[1;33mwarn\33[0m: ");
 	
@@ -140,7 +159,8 @@ void log_warn(char const *fmt, ...)
 	putc('\n', stdout);
 }
 
-void log_fail(char const *fmt, ...)
+void
+log_fail(char const *fmt, ...)
 {
 	printf("\33[1;31mfail\33[0m: ");
 	
@@ -153,13 +173,15 @@ void log_fail(char const *fmt, ...)
 	exit(-1);
 }
 
-char const *file_ext(char const *file)
+char const *
+file_ext(char const *file)
 {
 	char const *ext = strrchr(file, '.');
 	return ext && ext != file ? ext + 1 : file + strlen(file);
 }
 
-char *file_read(char const *file, size_t *out_size)
+char *
+file_read(char const *file, size_t *out_size)
 {
 	FILE *fp = fopen(file, "rb");
 	if (!fp)
@@ -181,7 +203,8 @@ char *file_read(char const *file, size_t *out_size)
 	return fconts;
 }
 
-void file_mkdir_p(char const *dir)
+void
+file_mkdir_p(char const *dir)
 {
 	struct stat s;
 	if (!stat(dir, &s))
@@ -196,7 +219,8 @@ void file_mkdir_p(char const *dir)
 	free(cmd);
 }
 
-void file_rmdir(char const *dir)
+void
+file_rmdir(char const *dir)
 {
 	struct stat s;
 	if (stat(dir, &s) || !S_ISDIR(s.st_mode))
@@ -211,7 +235,8 @@ void file_rmdir(char const *dir)
 	free(cmd);
 }
 
-char *sanitize_cmd(char const *cmd)
+char *
+sanitize_cmd(char const *cmd)
 {
 	size_t cmd_len = strlen(cmd);
 	struct string san_cmd = string_create();

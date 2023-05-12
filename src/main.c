@@ -5,7 +5,8 @@
 
 #define DEFAULT_CONF_FILE "mincbuild.json"
 
-int main(int argc, char const *argv[])
+int
+main(int argc, char const *argv[])
 {
 	if (argc > 2) {
 		printf("usage: %s [build config file]\n", argv[0]);
