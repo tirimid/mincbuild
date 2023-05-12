@@ -270,7 +270,7 @@ build_prune(struct conf const *conf, struct build_info *info)
 		++winfo.args[i % winfo.cnt].cnt;
 
 	// create threads to mark which sources should be pruned.
-	for (size_t i = 0; i < info->srcs.size; ++i) {
+	for (int i = 0; i < winfo.cnt; ++i) {
 		struct thread_arg *args = winfo.args, *prev = &args[i == 0 ? i : i - 1];
 		args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
 		
