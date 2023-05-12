@@ -15,11 +15,8 @@
 
 #include "util.h"
 
-// the `%s` should be formatted and replaced with an extension when this regex
-// is used, so that multiple header extensions; e.g. `.h`, `.hh`, `.hxx` can be
-// supported instead of just those defined in the regex.
-#define INCLUDE_REGEX "#\\s*include\\s*[<\\\"].*\\.%s[>\\\"]"
-#define INCLUDE_REGEX_LEN 28
+#define INCLUDE_REGEX "#\\s*include\\s*[<\\\"].*[>\\\"]"
+#define INCLUDE_REGEX_LEN 26
 
 struct thread_arg {
 	size_t start, cnt;
@@ -160,41 +157,41 @@ chk_inc_rebuild(struct build_info const *info, char const *path,
 {
 	char *path_san = sanitize_cmd(path);
 	struct arraylist incs = arraylist_create();
-	
-	for (size_t i = 0; i < conf->proj.hdr_exts.size; ++i) {
-		char const *ext = conf->proj.hdr_exts.data[i];
-		size_t path_len = strlen(path_san), ext_len = strlen(ext);
-		char *cmd = malloc(path_len + INCLUDE_REGEX_LEN + ext_len + 9);
-		sprintf(cmd, "grep \"" INCLUDE_REGEX "\" %s", ext, path_san);
 
-		FILE *fp = popen(cmd, "r");
-		if (!fp)
-			log_fail("failed to popen() grep");
+	// find all includes in file, and add them to `incs`.
+	char *cmd = malloc(strlen(path_san) + INCLUDE_REGEX_LEN + 9);
+	sprintf(cmd, "grep \"" INCLUDE_REGEX "\" %s", path_san);
 
-		char *inc = NULL, *inc_file;
-		size_t inc_len;
-		while (getline(&inc, &inc_len, fp) != -1) {
-			// isolate filename of include directive, which can then be accessed
-			// via the `inc_file` variable.
-			for (inc_file = inc; !strchr("<\"", *inc_file); ++inc_file);
-			*inc_file++ = 0;
-			
-			for (inc_len = 0; !strchr(">\"", inc_file[inc_len]); ++inc_len);
-			inc_file[inc_len] = 0;
+	FILE *fp = popen(cmd, "r");
+	if (!fp)
+		log_fail("failed to popen() grep");
 
-			// then, add found includes to `incs`.
-			size_t inc_path_size = strlen(conf->proj.inc_dir) + inc_len + 2;
-			char *inc_path = malloc(inc_path_size);
-			sprintf(inc_path, "%s/%s", conf->proj.inc_dir, inc_file);
-			arraylist_add(&incs, inc_path, inc_path_size);
-			
-			free(inc_path);
-		}
+	free(cmd);
+
+	char *inc = NULL;
+	size_t inc_len;
+	while (getline(&inc, &inc_len, fp) != -1) {
+		char *inc_file;
 		
-		pclose(fp);
-		free(inc);
-		free(cmd);
+		// isolate filename of include directive, which can then be accessed
+		// via the `inc_file` variable.
+		for (inc_file = inc; !strchr("<\"", *inc_file); ++inc_file);
+		*inc_file++ = 0;
+			
+		for (inc_len = 0; !strchr(">\"", inc_file[inc_len]); ++inc_len);
+		inc_file[inc_len] = 0;
+
+		// then, add found includes to `incs`.
+		size_t inc_path_size = strlen(conf->proj.inc_dir) + inc_len + 2;
+		char *inc_path = malloc(inc_path_size);
+		sprintf(inc_path, "%s/%s", conf->proj.inc_dir, inc_file);
+		arraylist_add(&incs, inc_path, inc_path_size);
+			
+		free(inc_path);
 	}
+	
+	pclose(fp);
+	free(inc);
 
 	// remove non-project includes from `incs`, since it would make no sense to
 	// rebuild based on whether those were modified; checking whether a
@@ -215,7 +212,7 @@ chk_inc_rebuild(struct build_info const *info, char const *path,
 		}
 	}
 
-	// determine whether a rebuild is necessary.
+	// determine whether a rebuild is necessary based on gathered information.
 	struct stat s;
 	stat(path, &s);
 	bool rebuild = difftime(s.st_mtime, obj_mt) > 0.0;
