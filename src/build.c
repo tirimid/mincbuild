@@ -1,18 +1,25 @@
 #include "build.h"
 
-#define _POSIX_C_SOURCE 2
+#define _POSIX_C_SOURCE 200809
 #include <stdio.h>
 #undef _POSIX_C_SOURCE
 
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include <fts.h>
 #include <sys/stat.h>
 #include <pthread.h>
 
 #include "util.h"
+
+// the `%s` should be formatted and replaced with an extension when this regex
+// is used, so that multiple header extensions; e.g. `.h`, `.hh`, `.hxx` can be
+// supported instead of just those defined in the regex.
+#define INCLUDE_REGEX "#\\s*include\\s*[<\\\"].*\\.%s[>\\\"]"
+#define INCLUDE_REGEX_LEN 28
 
 struct thread_arg {
 	size_t start, cnt;
@@ -88,9 +95,89 @@ void build_info_destroy(struct build_info *info)
 	arraylist_destroy(&info->objs);
 }
 
-void build_prune(struct build_info *info)
+static bool chk_inc_rebuild(struct build_info const *info, char const *path,
+                            struct conf const *conf)
 {
-	// TODO: add pruning to remove unnecessary compilation.
+	char *path_san = sanitize_cmd(path);
+	struct arraylist incs = arraylist_create();
+	
+	for (size_t i = 0; i < conf->proj.hdr_exts.size; ++i) {
+		char const *ext = conf->proj.hdr_exts.data[i];
+		size_t path_len = strlen(path_san), ext_len = strlen(ext);
+		char *cmd = malloc(path_len + INCLUDE_REGEX_LEN + ext_len + 9);
+		sprintf(cmd, "grep \"" INCLUDE_REGEX "\" %s", ext, path_san);
+
+		FILE *fp = popen(cmd, "r");
+		if (!fp)
+			log_fail("failed to popen() grep");
+
+		char *inc = NULL, *inc_file;
+		size_t inc_len;
+		while (getline(&inc, &inc_len, fp) != -1) {
+			// isolate filename of include directive, which can then be accessed
+			// via the `inc_file` variable.
+			for (inc_file = inc; !strchr("<\"", *inc_file); ++inc_file);
+			*inc_file++ = 0;
+			
+			for (inc_len = 0; !strchr(">\"", inc_file[inc_len]); ++inc_len);
+			inc_file[inc_len] = 0;
+
+			// then, add found includes to `incs`.
+			size_t inc_path_size = strlen(conf->proj.inc_dir) + inc_len + 2;
+			char *inc_path = malloc(inc_path_size);
+			sprintf(inc_path, "%s/%s", conf->proj.inc_dir, inc_file);
+			arraylist_add(&incs, inc_path, inc_path_size);
+			
+			free(inc_path);
+		}
+		
+		pclose(fp);
+		free(inc);
+		free(cmd);
+	}
+
+	// remove non-project includes from `incs`, since it would make no sense to
+	// rebuild based on whether those were modified; checking whether a
+	// dependency change requires a rebuild should be on the user.
+	for (size_t i = 0; i < incs.size; ++i) {
+		bool proj_hdr = false;
+		
+		for (size_t j = 0; j < info->hdrs.size; ++j) {
+			if (!strcmp(incs.data[i], info->hdrs.data[j])) {
+				proj_hdr = true;
+				break;
+			}
+		}
+
+		if (!proj_hdr) {
+			arraylist_rm(&incs, i);
+			--i;
+		}
+	}
+
+	free(path_san);
+	arraylist_destroy(&incs);
+	return true;
+}
+
+void build_prune(struct conf const *conf, struct build_info *info)
+{
+	for (size_t i = 0; i < info->srcs.size; ++i) {
+		struct stat s_src;
+		stat(info->srcs.data[i], &s_src);
+
+		struct stat s_obj;
+		if (stat(info->objs.data[i], &s_obj))
+			continue;
+
+		double dt = difftime(s_obj.st_mtime, s_src.st_mtime);
+		if (dt < 0.0 || chk_inc_rebuild(info, info->srcs.data[i], conf))
+			continue;
+		
+		arraylist_rm(&info->srcs, i);
+		arraylist_rm(&info->objs, i);
+		--i;
+	}
 }
 
 static void *compile_worker(void *vp_arg)
@@ -143,7 +230,7 @@ void build_compile(struct conf const *conf, struct build_info const *info)
 {
 	FILE *fp = popen("nproc", "r");
 	if (!fp)
-		log_fail("failed to popen() of nproc");
+		log_fail("failed to popen() nproc");
 
 	// we can (hopefully) assume the user doesn't have more than ~2 billion
 	// cores to compile with, as that would be a little strange.

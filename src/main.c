@@ -16,7 +16,7 @@ int main(int argc, char const *argv[])
 	conf_validate(&conf);
 	
 	struct build_info info = build_info_get(&conf);
-	build_prune(&info);
+	build_prune(&conf, &info);
 	build_compile(&conf, &info);
 	if (conf.proj.produce_output)
 		build_link(&conf, &info);

@@ -1,6 +1,6 @@
 #include "util.h"
 
-#define _POSIX_C_SOURCE 2
+#define _POSIX_C_SOURCE 200809
 #include <stdio.h>
 #undef _POSIX_C_SOURCE
 
@@ -199,7 +199,7 @@ void file_mkdir_p(char const *dir)
 void file_rmdir(char const *dir)
 {
 	struct stat s;
-	if (!stat(dir, &s))
+	if (stat(dir, &s) || !S_ISDIR(s.st_mode))
 		return;
 	
 	char *cmd = malloc(7 + strlen(dir));
