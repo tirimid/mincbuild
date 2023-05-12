@@ -96,7 +96,7 @@ void build_info_destroy(struct build_info *info)
 }
 
 static bool chk_inc_rebuild(struct build_info const *info, char const *path,
-                            struct conf const *conf)
+                            struct conf const *conf, time_t obj_mt)
 {
 	char *path_san = sanitize_cmd(path);
 	struct arraylist incs = arraylist_create();
@@ -155,9 +155,18 @@ static bool chk_inc_rebuild(struct build_info const *info, char const *path,
 		}
 	}
 
+	// determine whether a rebuild is necessary.
+	struct stat s;
+	stat(path, &s);
+	bool rebuild = difftime(s.st_mtime, obj_mt) > 0.0;
+
+	for (size_t i = 0; i < incs.size && !rebuild; ++i)
+		rebuild = rebuild || chk_inc_rebuild(info, incs.data[i], conf, obj_mt);
+
 	free(path_san);
 	arraylist_destroy(&incs);
-	return true;
+	
+	return rebuild;
 }
 
 void build_prune(struct conf const *conf, struct build_info *info)
@@ -170,8 +179,9 @@ void build_prune(struct conf const *conf, struct build_info *info)
 		if (stat(info->objs.data[i], &s_obj))
 			continue;
 
-		double dt = difftime(s_obj.st_mtime, s_src.st_mtime);
-		if (dt < 0.0 || chk_inc_rebuild(info, info->srcs.data[i], conf))
+		time_t src_mt = s_src.st_mtime, obj_mt = s_obj.st_mtime;
+		double dt = difftime(src_mt, obj_mt);
+		if (dt > 0.0 || chk_inc_rebuild(info, info->srcs.data[i], conf, obj_mt))
 			continue;
 		
 		arraylist_rm(&info->srcs, i);
@@ -241,8 +251,9 @@ void build_compile(struct conf const *conf, struct build_info const *info)
 	
 	pclose(fp);
 
+	worker_cnt = info->srcs.size < worker_cnt ? info->srcs.size : worker_cnt;
 	files_compiled = 0;
-	log_info("compiling project with %d workers", worker_cnt);
+	log_info("compiling project with %d worker(s)", worker_cnt);
 	
 	pthread_t *workers = malloc(sizeof(*workers) * worker_cnt);
 	int *worker_rcs = malloc(sizeof(*worker_rcs) * worker_cnt);
