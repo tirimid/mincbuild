@@ -105,13 +105,9 @@ ext_files(char *dir, struct arraylist const *exts)
 
 		char const *path = fts_ent->fts_path, *ext = file_ext(path);
 		size_t path_len = fts_ent->fts_pathlen + 1;
-		
-		for (size_t i = 0; i < exts->size; ++i) {
-			if (!strcmp(exts->data[i], ext)) {
-				arraylist_add(&files, path, path_len);
-				break;
-			}
-		}
+
+		if (arraylist_contains(exts, ext))
+			arraylist_add(&files, path, path_len);
 	}
 
 	fts_close(fts_p);
@@ -152,8 +148,8 @@ build_info_destroy(struct build_info *info)
 }
 
 static bool
-chk_inc_rebuild(struct build_info const *info, char const *path,
-                struct conf const *conf, time_t obj_mt)
+chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
+                struct conf const *conf, struct arraylist *chkd_incs)
 {
 	char *path_san = sanitize_cmd(path);
 	struct arraylist incs = arraylist_create();
@@ -167,6 +163,7 @@ chk_inc_rebuild(struct build_info const *info, char const *path,
 		log_fail("failed to popen() grep");
 
 	free(cmd);
+	free(path_san);
 
 	char *inc = NULL;
 	size_t inc_len;
@@ -193,36 +190,29 @@ chk_inc_rebuild(struct build_info const *info, char const *path,
 	pclose(fp);
 	free(inc);
 
-	// remove non-project includes from `incs`, since it would make no sense to
-	// rebuild based on whether those were modified; checking whether a
-	// dependency change requires a rebuild should be on the user.
+	// remove non-project includes from `incs`, and also includes for headers
+	// which have already been checked, preventing excess resource usage and
+	// hanging with coupled inclusions.
 	for (size_t i = 0; i < incs.size; ++i) {
-		bool proj_hdr = false;
-		
-		for (size_t j = 0; j < info->hdrs.size; ++j) {
-			if (!strcmp(incs.data[i], info->hdrs.data[j])) {
-				proj_hdr = true;
-				break;
-			}
-		}
-
-		if (!proj_hdr) {
+		if (!arraylist_contains(&info->hdrs, incs.data[i])
+		    || arraylist_contains(chkd_incs, incs.data[i])) {
 			arraylist_rm(&incs, i);
 			--i;
 		}
 	}
-
+	
 	// determine whether a rebuild is necessary based on gathered information.
 	struct stat s;
 	stat(path, &s);
 	bool rebuild = difftime(s.st_mtime, obj_mt) > 0.0;
 
-	for (size_t i = 0; i < incs.size && !rebuild; ++i)
-		rebuild = rebuild || chk_inc_rebuild(info, incs.data[i], conf, obj_mt);
+	for (size_t i = 0; i < incs.size && !rebuild; ++i) {
+		arraylist_add(chkd_incs, incs.data[i], incs.data_sizes[i]);
+		rebuild = rebuild || chk_inc_rebuild(info, incs.data[i], obj_mt, conf,
+		                                     chkd_incs);
+	}
 
-	free(path_san);
 	arraylist_destroy(&incs);
-	
 	return rebuild;
 }
 
@@ -243,8 +233,12 @@ prune_worker(void *vp_arg)
 
 		time_t src_mt = s_src.st_mtime, obj_mt = s_obj.st_mtime;
 		double dt = difftime(src_mt, obj_mt);
-		if (dt > 0.0 || chk_inc_rebuild(info, info->srcs.data[i], conf, obj_mt))
+		if (dt > 0.0)
 			continue;
+
+		struct arraylist chkd_incs = arraylist_create();
+		if (chk_inc_rebuild(info, info->srcs.data[i], obj_mt, conf, &chkd_incs))
+			goto cleanup;
 
 		printf("\t%s\n", (char *)info->srcs.data[i]);
 
@@ -252,6 +246,9 @@ prune_worker(void *vp_arg)
 		free(info->srcs.data[i]);
 		free(info->objs.data[i]);
 		info->srcs.data[i] = info->objs.data[i] = NULL;
+
+	cleanup:
+		arraylist_destroy(&chkd_incs);
 	}
 
 	return NULL;

@@ -2,6 +2,7 @@
 #define UTIL_H__
 
 #include <stddef.h>
+#include <stdbool.h>
 
 struct arraylist {
 	void **data;
@@ -20,6 +21,7 @@ void arraylist_add(struct arraylist *al, void const *new, size_t size);
 void arraylist_rm(struct arraylist *al, size_t ind);
 void arraylist_rm_no_free(struct arraylist *al, size_t ind);
 struct arraylist arraylist_copy(struct arraylist const *al);
+bool arraylist_contains(struct arraylist const *al, void const *item);
 
 struct string string_create(void);
 void string_destroy(struct string *s);

@@ -75,6 +75,17 @@ arraylist_copy(struct arraylist const *al)
 	return cp;
 }
 
+bool
+arraylist_contains(struct arraylist const *al, void const *item)
+{
+	for (size_t i = 0; i < al->size; ++i) {
+		if (!memcmp(al->data[i], item, al->data_sizes[i]))
+			return true;
+	}
+
+	return false;
+}
+
 struct string
 string_create(void)
 {
