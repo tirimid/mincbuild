@@ -155,11 +155,7 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 	char *path_san = sanitize_cmd(path);
 	struct arraylist incs = arraylist_create();
 
-	static size_t grep_len, inc_regex_len;
-	if (!grep_len) {
-		grep_len = strlen(CMD_GREP);
-		inc_regex_len = strlen(INCLUDE_REGEX);
-	}
+	size_t grep_len = strlen(CMD_GREP), inc_regex_len = strlen(INCLUDE_REGEX);
 
 	// find all includes in file, and add them to `incs`.
 	char *cmd = malloc(grep_len + strlen(path_san) + inc_regex_len + 5);
