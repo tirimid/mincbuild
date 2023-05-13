@@ -16,13 +16,13 @@
 #include "util.h"
 
 #define INCLUDE_REGEX "#\\s*include\\s*[<\\\"].*[>\\\"]"
-#define INCLUDE_REGEX_LEN 26
 
 struct thread_arg {
 	size_t start, cnt;
 	struct conf const *conf;
 	struct build_info *info;
 	int *out_rc;
+	size_t *out_progress;
 };
 
 struct work_info {
@@ -30,16 +30,15 @@ struct work_info {
 	int *rcs;
 	struct thread_arg *args;
 	pthread_t *workers;
+	size_t progress;
 };
-
-static size_t files_compiled;
 
 static int
 get_worker_cnt(size_t task_cnt)
 {
-	FILE *fp = popen("nproc", "r");
+	FILE *fp = popen(CMD_NPROC, "r");
 	if (!fp)
-		log_fail("failed to popen() nproc");
+		log_fail("failed to popen() " CMD_NPROC);
 
 	char buf[32] = {0};
 	int worker_cnt = atoi(fgets(buf, 32, fp));
@@ -62,6 +61,7 @@ work_info_create(struct conf const *conf, struct build_info *info,
 		.rcs = malloc(cnt * sizeof(int)),
 		.args = malloc(cnt * sizeof(struct thread_arg)),
 		.workers = malloc(cnt * sizeof(pthread_t)),
+		.progress = 0,
 	};
 
 	for (int i = 0; i < cnt; ++i) {
@@ -69,6 +69,7 @@ work_info_create(struct conf const *conf, struct build_info *info,
 			.conf = conf,
 			.info = info,
 			.out_rc = &winfo.rcs[i],
+			.out_progress = &winfo.progress,
 		};
 	}
 
@@ -154,13 +155,19 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 	char *path_san = sanitize_cmd(path);
 	struct arraylist incs = arraylist_create();
 
+	static size_t grep_len, inc_regex_len;
+	if (!grep_len) {
+		grep_len = strlen(CMD_GREP);
+		inc_regex_len = strlen(INCLUDE_REGEX);
+	}
+
 	// find all includes in file, and add them to `incs`.
-	char *cmd = malloc(strlen(path_san) + INCLUDE_REGEX_LEN + 9);
-	sprintf(cmd, "grep \"" INCLUDE_REGEX "\" %s", path_san);
+	char *cmd = malloc(grep_len + strlen(path_san) + inc_regex_len + 5);
+	sprintf(cmd, CMD_GREP " \"" INCLUDE_REGEX "\" %s", path_san);
 
 	FILE *fp = popen(cmd, "r");
 	if (!fp)
-		log_fail("failed to popen() grep");
+		log_fail("failed to popen() " CMD_GREP);
 
 	free(cmd);
 	free(path_san);
@@ -174,7 +181,7 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 		// via the `inc_file` variable.
 		for (inc_file = inc; !strchr("<\"", *inc_file); ++inc_file);
 		*inc_file++ = 0;
-			
+		
 		for (inc_len = 0; !strchr(">\"", inc_file[inc_len]); ++inc_len);
 		inc_file[inc_len] = 0;
 
@@ -296,7 +303,7 @@ compile_worker(void *vp_arg)
 
 	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
 		char const *src = info->srcs.data[i], *obj = info->objs.data[i];
-		printf("(%zu/%zu)\t%s\n", ++files_compiled, info->srcs.size, obj);
+		printf("(%zu/%zu)\t%s\n", ++*arg->out_progress, info->srcs.size, obj);
 
 		struct string cmd = string_create();
 
@@ -338,7 +345,6 @@ void
 build_compile(struct conf const *conf, struct build_info *info)
 {
 	struct work_info winfo = work_info_create(conf, info, info->srcs.size);
-	files_compiled = 0;
 	log_info("compiling project with %d worker(s)", winfo.cnt);
 
 	for (size_t i = 0; i < info->objs.size; ++i)

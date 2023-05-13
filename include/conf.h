@@ -5,6 +5,13 @@
 
 #include "util.h"
 
+// compile-time configuration.
+// this information is used by mincbuild but is not important to the user.
+// change this if, for example, you want to use ripgrep instead of grep for the
+// build process.
+#define CMD_GREP "/usr/bin/grep"
+#define CMD_NPROC "/usr/bin/nproc"
+
 struct conf {
 	struct {
 		char *cc, *ld;
