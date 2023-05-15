@@ -107,6 +107,7 @@ conf_from_file(char const *file)
 	conf.proj.produce_output = json_get_bool(json, "proj", "produce-output", file);
 	conf.proj.src_exts = json_get_str_list(json, "proj", "src-exts", file);
 	conf.proj.hdr_exts = json_get_str_list(json, "proj", "hdr-exts", file);
+	conf.deps.incs = json_get_str_list(json, "deps", "incs", file);
 
 	// then, if output should be produced, get necessary information for linker
 	// to be run after compilation.
@@ -117,7 +118,6 @@ conf_from_file(char const *file)
 		conf.tc_info.ld_lbin_flag = json_get_str(json, "tc-info", "ld-lbin-flag", file);
 		conf.tc_info.ld_success_rc = json_get_int(json, "tc-info", "ld-success-rc", file);
 		conf.proj.output = json_get_str(json, "proj", "output", file);
-		conf.deps.incs = json_get_str_list(json, "deps", "incs", file);
 		conf.deps.libs = json_get_str_list(json, "deps", "libs", file);
 	}
 
