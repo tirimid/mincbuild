@@ -305,14 +305,14 @@ compile_worker(void *vp_arg)
 
 		// build base command.
 		string_push_c_str_n(&cmd, conf->tc.cc, " ", conf->tc.cflags, " ",
-		                    conf->tc_info.cc_cobj_flag, " ", obj, " ",
-		                    conf->tc_info.cc_conly_flag, " ", src, " ",
-		                    conf->tc_info.cc_inc_flag, " ", conf->proj.inc_dir,
-		                    " ", NULL);
+		                    conf->tc_info.cc_cobj_flag, obj, " ",
+		                    conf->tc_info.cc_conly_flag, src, " ",
+		                    conf->tc_info.cc_inc_flag, conf->proj.inc_dir, " ",
+		                    NULL);
 
 		// add inclusion dependencies.
 		for (size_t j = 0; j < conf->deps.incs.size; ++j) {
-			string_push_c_str_n(&cmd, conf->tc_info.cc_inc_flag, " ",
+			string_push_c_str_n(&cmd, conf->tc_info.cc_inc_flag,
 			                    conf->deps.incs.data[j], " ", NULL);
 		}
 
@@ -374,7 +374,7 @@ build_link(struct conf const *conf, struct build_info const *info)
 
 	// build base command.
 	string_push_c_str_n(&cmd, conf->tc.ld, " ", conf->tc.ldflags, " ",
-	                    conf->tc_info.ld_lbin_flag, " ", conf->proj.output, " ",
+	                    conf->tc_info.ld_lbin_flag, conf->proj.output, " ",
 	                    NULL);
 
 	// add all project object files, including those omitted during compilation.
@@ -390,7 +390,7 @@ build_link(struct conf const *conf, struct build_info const *info)
 
 	// add library dependencies.
 	for (size_t i = 0; i < conf->deps.libs.size; ++i) {
-		string_push_c_str_n(&cmd, conf->tc_info.ld_lib_flag, " ",
+		string_push_c_str_n(&cmd, conf->tc_info.ld_lib_flag,
 		                    conf->deps.libs.data[i], " ", NULL);
 	}
 
