@@ -7,6 +7,10 @@
 
 #include <json-c/json.h>
 #include <sys/stat.h>
+#include <libtmcul/log.h>
+#include <libtmcul/file.h>
+
+#include "util.h"
 
 static json_object *
 json_get(json_object const *json, char const *sct, char const *key,
@@ -138,12 +142,12 @@ conf_validate(struct conf const *conf)
 
 	if (stat(conf->proj.inc_dir, &s)) {
 		log_warn("no include directory (%s), creating", conf->proj.inc_dir);
-		file_mkdir_p(conf->proj.inc_dir);
+		cmd_mkdir_p(conf->proj.inc_dir);
 	}
 
 	if (stat(conf->proj.lib_dir, &s)) {
 		log_warn("no build directory (%s), creating", conf->proj.lib_dir);
-		file_mkdir_p(conf->proj.lib_dir);
+		cmd_mkdir_p(conf->proj.lib_dir);
 	}
 
 	// make sure system has specified compiler and linker.

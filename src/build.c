@@ -12,6 +12,9 @@
 #include <fts.h>
 #include <sys/stat.h>
 #include <pthread.h>
+#include <libtmcul/ds/string.h>
+#include <libtmcul/file.h>
+#include <libtmcul/log.h>
 
 #include "util.h"
 
@@ -321,8 +324,8 @@ compile_worker(void *vp_arg)
 		char *cmd_san = sanitize_cmd(cmd_unsan);
 		free(cmd_unsan);
 
-		file_mkdir_p(obj);
-		file_rmdir(obj);
+		cmd_mkdir_p(obj);
+		cmd_rmdir(obj);
 
 		int rc = system(cmd_san);
 		free(cmd_san);
@@ -399,8 +402,8 @@ build_link(struct conf const *conf, struct build_info const *info)
 	char *cmd_san = sanitize_cmd(cmd_unsan);
 	free(cmd_unsan);
 
-	file_mkdir_p(conf->proj.output);
-	file_rmdir(conf->proj.output);
+	cmd_mkdir_p(conf->proj.output);
+	cmd_rmdir(conf->proj.output);
 
 	int rc = system(cmd_san);
 	free(cmd_san);

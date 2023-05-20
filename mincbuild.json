@@ -25,6 +25,6 @@
 	},
 	"deps": {
 		"incs": [],
-		"libs": ["json-c", "pthread"]
+		"libs": ["json-c", "pthread", "tmcul"]
 	}
 }
