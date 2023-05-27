@@ -92,6 +92,9 @@ struct conf
 conf_from_file(char const *file)
 {
 	char *file_conts = file_read(file, NULL);
+	if (!file_conts)
+		log_fail("cannot open file %s", file);
+	
 	json_object *json = json_tokener_parse(file_conts);
 	if (!json)
 		log_fail("malformed JSON in %s", file);
