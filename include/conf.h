@@ -3,7 +3,7 @@
 
 #include <stdbool.h>
 
-#include <libtmcul/ds/arraylist.h>
+#include <tmcul/ds/arraylist.h>
 
 // compile-time configuration.
 // this information is used by mincbuild but is not important to the user.

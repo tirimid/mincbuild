@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include <sys/stat.h>
-#include <libtmcul/ds/string.h>
+#include <tmcul/ds/string.h>
 
 #define ESCAPABLE " \t\n\v\f\r\\'\"<>;"
 #define SANITIZE_ESCAPE "'\"<>;"

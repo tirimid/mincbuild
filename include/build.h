@@ -1,7 +1,7 @@
 #ifndef BUILD_H__
 #define BUILD_H__
 
-#include <libtmcul/ds/arraylist.h>
+#include <tmcul/ds/arraylist.h>
 
 #include "conf.h"
 

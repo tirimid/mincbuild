@@ -12,9 +12,9 @@
 #include <fts.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <libtmcul/ds/string.h>
-#include <libtmcul/file.h>
-#include <libtmcul/log.h>
+#include <tmcul/ds/string.h>
+#include <tmcul/file.h>
+#include <tmcul/log.h>
 
 #include "util.h"
 

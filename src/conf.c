@@ -7,8 +7,8 @@
 
 #include <json-c/json.h>
 #include <sys/stat.h>
-#include <libtmcul/log.h>
-#include <libtmcul/file.h>
+#include <tmcul/log.h>
+#include <tmcul/file.h>
 
 #include "util.h"
 
