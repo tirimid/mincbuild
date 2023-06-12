@@ -104,9 +104,8 @@ conf_from_file(char const *file)
 	// first, extract only mandatory information for compilation to objects.
 	conf.tc.cc = json_get_str(json, "tc", "cc", file);
 	conf.tc.cflags = json_get_str(json, "tc", "cflags", file);
-	conf.tc_info.cc_conly_flag = json_get_str(json, "tc-info", "cc-conly-flag", file);
-	conf.tc_info.cc_inc_flag = json_get_str(json, "tc-info", "cc-inc-flag", file);
-	conf.tc_info.cc_cobj_flag = json_get_str(json, "tc-info", "cc-cobj-flag", file);
+	conf.tc_info.cc_cmd_fmt = json_get_str(json, "tc-info", "cc-cmd-fmt", file);
+	conf.tc_info.cc_inc_fmt = json_get_str(json, "tc-info", "cc-inc-fmt", file);
 	conf.tc_info.cc_success_rc = json_get_int(json, "tc-info", "cc-success-rc", file);
 	conf.proj.src_dir = json_get_str(json, "proj", "src-dir", file);
 	conf.proj.inc_dir = json_get_str(json, "proj", "inc-dir", file);
@@ -121,8 +120,9 @@ conf_from_file(char const *file)
 	if (conf.proj.produce_output) {
 		conf.tc.ld = json_get_str(json, "tc", "ld", file);
 		conf.tc.ldflags = json_get_str(json, "tc", "ldflags", file);
-		conf.tc_info.ld_lib_flag = json_get_str(json, "tc-info", "ld-lib-flag", file);
-		conf.tc_info.ld_lbin_flag = json_get_str(json, "tc-info", "ld-lbin-flag", file);
+		conf.tc_info.ld_lib_fmt = json_get_str(json, "tc-info", "ld-lib-fmt", file);
+		conf.tc_info.ld_obj_fmt = json_get_str(json, "tc-info", "ld-obj-fmt", file);
+		conf.tc_info.ld_cmd_fmt = json_get_str(json, "tc-info", "ld-cmd-fmt", file);
 		conf.tc_info.ld_success_rc = json_get_int(json, "tc-info", "ld-success-rc", file);
 		conf.proj.output = json_get_str(json, "proj", "output", file);
 		conf.deps.libs = json_get_str_list(json, "deps", "libs", file);
@@ -166,9 +166,8 @@ conf_destroy(struct conf *conf)
 {
 	free(conf->tc.cc);
 	free(conf->tc.cflags);
-	free(conf->tc_info.cc_conly_flag);
-	free(conf->tc_info.cc_inc_flag);
-	free(conf->tc_info.cc_cobj_flag);
+	free(conf->tc_info.cc_cmd_fmt);
+	free(conf->tc_info.cc_inc_fmt);
 	free(conf->proj.src_dir);
 	free(conf->proj.inc_dir);
 	free(conf->proj.lib_dir);
@@ -178,8 +177,9 @@ conf_destroy(struct conf *conf)
 	if (conf->proj.produce_output) {
 		free(conf->tc.ld);
 		free(conf->tc.ldflags);
-		free(conf->tc_info.ld_lib_flag);
-		free(conf->tc_info.ld_lbin_flag);
+		free(conf->tc_info.ld_lib_fmt);
+		free(conf->tc_info.ld_obj_fmt);
+		free(conf->tc_info.ld_cmd_fmt);
 		free(conf->proj.output);
 		arraylist_destroy(&conf->deps.incs);
 		arraylist_destroy(&conf->deps.libs);

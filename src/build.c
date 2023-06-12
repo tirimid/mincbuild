@@ -293,6 +293,79 @@ build_prune(struct conf const *conf, struct build_info *info)
 	}
 }
 
+static void
+comp_fmt_command(struct string *out_cmd, struct conf const *conf)
+{
+	string_push_c_str(out_cmd, conf->tc.cc);
+}
+
+static void
+comp_fmt_cflags(struct string *out_cmd, struct conf const *conf)
+{
+	string_push_c_str(out_cmd, conf->tc.cflags);
+}
+
+static void
+comp_fmt_source(struct string *out_cmd, char const *src)
+{
+	string_push_c_str(out_cmd, src);
+}
+
+static void
+comp_fmt_object(struct string *out_cmd, char const *obj)
+{
+	string_push_c_str(out_cmd, obj);
+}
+
+static void
+comp_fmt_includes(struct string *out_cmd, struct conf const *conf)
+{
+	struct arraylist incs = arraylist_copy(&conf->deps.incs);
+	arraylist_add(&incs, conf->proj.inc_dir, strlen(conf->proj.inc_dir) + 1);
+	
+	for (size_t i = 0; i < incs.size; ++i) {
+		char const *fmt = conf->tc_info.cc_inc_fmt;
+		size_t fmt_len = strlen(fmt);
+		
+		for (size_t j = 0; j < fmt_len; ++j) {
+			if (fmt[j] != '%') {
+				string_push_ch(out_cmd, fmt[j]);
+				continue;
+			}
+
+			switch (fmt[++j]) {
+			case 'i':
+				string_push_c_str(out_cmd, incs.data[i]);
+				break;
+			case '%':
+			case 0:
+				string_push_ch(out_cmd, '%');
+				break;
+			default:
+				--j;
+				break;
+			}
+		}
+
+		if (i < incs.size - 1)
+			string_push_ch(out_cmd, ' ');
+	}
+
+	arraylist_destroy(&incs);
+}
+
+static void
+comp_fmt_escape(struct string *out_cmd)
+{
+	string_push_ch(out_cmd, '%');
+}
+
+static void
+comp_fmt_default(struct string *out_cmd, char ch)
+{
+	string_push_ch(out_cmd, ch);
+}
+
 static void *
 compile_worker(void *vp_arg)
 {
@@ -305,20 +378,41 @@ compile_worker(void *vp_arg)
 		printf("(%zu/%zu)\t%s\n", ++*arg->out_progress, info->srcs.size, obj);
 
 		struct string cmd = string_create();
+		char const *fmt = conf->tc_info.cc_cmd_fmt;
+		size_t fmt_len = strlen(fmt);
+		
+		for (size_t j = 0; j < fmt_len; ++j) {
+			if (fmt[j] != '%') {
+				comp_fmt_default(&cmd, fmt[j]);
+				continue;
+			}
 
-		// build base command.
-		string_push_c_str_n(&cmd, conf->tc.cc, " ", conf->tc.cflags, " ",
-		                    conf->tc_info.cc_cobj_flag, obj, " ",
-		                    conf->tc_info.cc_conly_flag, src, " ",
-		                    conf->tc_info.cc_inc_flag, conf->proj.inc_dir, " ",
-		                    NULL);
-
-		// add inclusion dependencies.
-		for (size_t j = 0; j < conf->deps.incs.size; ++j) {
-			string_push_c_str_n(&cmd, conf->tc_info.cc_inc_flag,
-			                    conf->deps.incs.data[j], " ", NULL);
+			switch (fmt[++j]) {
+			case 'c':
+				comp_fmt_command(&cmd, conf);
+				break;
+			case 'f':
+				comp_fmt_cflags(&cmd, conf);
+				break;
+			case 's':
+				comp_fmt_source(&cmd, src);
+				break;
+			case 'o':
+				comp_fmt_object(&cmd, obj);
+				break;
+			case 'i':
+				comp_fmt_includes(&cmd, conf);
+				break;
+			case '%':
+			case 0:
+				comp_fmt_escape(&cmd);
+				break;
+			default:
+				--j;
+				break;
+			}
 		}
-
+		
 		char *cmd_unsan = string_to_c_str(&cmd);
 		string_destroy(&cmd);
 		char *cmd_san = sanitize_cmd(cmd_unsan);
@@ -368,34 +462,149 @@ build_compile(struct conf const *conf, struct build_info *info)
 	work_info_destroy(&winfo);
 }
 
+static void
+link_fmt_command(struct string *out_cmd, struct conf const *conf)
+{
+	string_push_c_str(out_cmd, conf->tc.ld);
+}
+
+static void
+link_fmt_ldflags(struct string *out_cmd, struct conf const *conf)
+{
+	string_push_c_str(out_cmd, conf->tc.ldflags);
+}
+
+static void
+link_fmt_objects(struct string *out_cmd, struct conf const *conf,
+                 struct arraylist const *objs)
+{
+	for (size_t i = 0; i < objs->size; ++i) {
+		char const *fmt = conf->tc_info.ld_obj_fmt;
+		size_t fmt_len = strlen(fmt);
+		
+		for (size_t j = 0; j < fmt_len; ++j) {
+			if (fmt[j] != '%') {
+				string_push_ch(out_cmd, fmt[j]);
+				continue;
+			}
+
+			switch (fmt[++j]) {
+			case 'o':
+				string_push_c_str(out_cmd, objs->data[i]);
+				break;
+			case '%':
+			case 0:
+				string_push_ch(out_cmd, '%');
+				break;
+			default:
+				--j;
+				break;
+			}
+		}
+
+		if (i < objs->size - 1)
+			string_push_ch(out_cmd, ' ');
+	}
+}
+
+static void
+link_fmt_output(struct string *out_cmd, struct conf const *conf)
+{
+	string_push_c_str(out_cmd, conf->proj.output);
+}
+
+static void
+link_fmt_libraries(struct string *out_cmd, struct conf const *conf)
+{
+	for (size_t i = 0; i < conf->deps.libs.size; ++i) {
+		char const *fmt = conf->tc_info.ld_lib_fmt;
+		size_t fmt_len = strlen(fmt);
+		
+		for (size_t j = 0; j < fmt_len; ++j) {
+			if (fmt[j] != '%') {
+				string_push_ch(out_cmd, fmt[j]);
+				continue;
+			}
+
+			switch (fmt[++j]) {
+			case 'l':
+				string_push_c_str(out_cmd, conf->deps.libs.data[i]);
+				break;
+			case '%':
+			case 0:
+				string_push_ch(out_cmd, '%');
+				break;
+			default:
+				--j;
+				break;
+			}
+		}
+
+		if (i < conf->deps.libs.size - 1)
+			string_push_ch(out_cmd, ' ');
+	}
+}
+
+static void
+link_fmt_escape(struct string *out_cmd)
+{
+	string_push_ch(out_cmd, '%');
+}
+
+static void
+link_fmt_default(struct string *out_cmd, char ch)
+{
+	string_push_ch(out_cmd, ch);
+}
+
 void
 build_link(struct conf const *conf, struct build_info const *info)
 {
 	log_info("linking project");
 
 	struct string cmd = string_create();
+	char const *fmt = conf->tc_info.ld_cmd_fmt;
+	size_t fmt_len = strlen(fmt);
 
-	// build base command.
-	string_push_c_str_n(&cmd, conf->tc.ld, " ", conf->tc.ldflags, " ",
-	                    conf->tc_info.ld_lbin_flag, conf->proj.output, " ",
-	                    NULL);
-
-	// add all project object files, including those omitted during compilation.
+	// get all project object files, including those omitted during compilation.
 	struct arraylist obj_exts = arraylist_create();
 	arraylist_add(&obj_exts, "o", 2);
 	struct arraylist all_objs = ext_files(conf->proj.lib_dir, &obj_exts);
 
-	for (size_t i = 0; i < all_objs.size; ++i)
-		string_push_c_str_n(&cmd, all_objs.data[i], " ", NULL);
+	for (size_t i = 0; i < fmt_len; ++i) {
+		if (fmt[i] != '%') {
+			link_fmt_default(&cmd, fmt[i]);
+			continue;
+		}
+
+		switch (fmt[++i]) {
+		case 'c':
+			link_fmt_command(&cmd, conf);
+			break;
+		case 'f':
+			link_fmt_ldflags(&cmd, conf);
+			break;
+		case 'o':
+			link_fmt_objects(&cmd, conf, &all_objs);
+			break;
+		case 'b':
+			link_fmt_output(&cmd, conf);
+			break;
+		case 'l':
+			link_fmt_libraries(&cmd, conf);
+			break;
+		case '%':
+		case 0:
+			link_fmt_escape(&cmd);
+			break;
+		default:
+			--i;
+			break;
+		}
+	}
 
 	arraylist_destroy(&obj_exts);
 	arraylist_destroy(&all_objs);
-
-	// add library dependencies.
-	for (size_t i = 0; i < conf->deps.libs.size; ++i) {
-		string_push_c_str_n(&cmd, conf->tc_info.ld_lib_flag,
-		                    conf->deps.libs.data[i], " ", NULL);
-	}
 
 	char *cmd_unsan = string_to_c_str(&cmd);
 	string_destroy(&cmd);

@@ -19,8 +19,8 @@ struct conf {
 	} tc;
 
 	struct {
-		char *cc_conly_flag, *cc_inc_flag, *cc_cobj_flag;
-		char *ld_lib_flag, *ld_lbin_flag;
+		char *cc_inc_fmt, *ld_lib_fmt, *ld_obj_fmt;
+		char *cc_cmd_fmt, *ld_cmd_fmt;
 		int cc_success_rc, ld_success_rc;
 	} tc_info;
 
