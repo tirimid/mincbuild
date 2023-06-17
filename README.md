@@ -1,7 +1,7 @@
 # mincbuild
 
 ## Introduction
-mincbuild, or (M)inimal (C) (Build)system, is a program which builds a C(++)
+mincbuild, or (Min)imal (C) (Build)system, is a program which builds a C(++)
 project with a simple directory structure. All configuration for the build
 process is specified in a JSON file, so there is no requirement of learning any
 annoying DSL like with Make. Please note that mincbuild enforces a project
