@@ -36,8 +36,7 @@ following the minimalist software philosophy. The commands run are partially
 determined by user input through the build config, so some sanitization is
 necessary. The following things are done:
 
-* Any whitespace characters are prefixed with '\\'
-* Any of the following characters are prefixed with '\\': ; ' " < >
+* Any of the following characters are prefixed with '\\': `; ' " < >`
 * Any lone backslashes are replaced by "\\\\"
 
 Nothing else is done for sanitization, but it should be fairly simple to add
