@@ -15,10 +15,12 @@
 #include <tmcul/ds/string.h>
 #include <tmcul/file.h>
 #include <tmcul/log.h>
+#include <tmcul/fmt.h>
 
 #include "util.h"
 
 #define INCLUDE_REGEX "#\\s*include\\s*[<\\\"].*[>\\\"]"
+#define FMT_SPEC_CH '%'
 
 struct thread_arg {
 	size_t start, cnt;
@@ -34,6 +36,16 @@ struct work_info {
 	struct thread_arg *args;
 	pthread_t *workers;
 	size_t progress;
+};
+
+struct comp_fmt_data {
+	struct conf const *conf;
+	char const *src, *obj;
+};
+
+struct link_fmt_data {
+	struct conf const *conf;
+	struct arraylist const *objs;
 };
 
 static int
@@ -294,76 +306,73 @@ build_prune(struct conf const *conf, struct build_info *info)
 }
 
 static void
-comp_fmt_command(struct string *out_cmd, struct conf const *conf)
+comp_fmt_command(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, conf->tc.cc);
+	struct comp_fmt_data const *data = vp_data;
+	string_push_c_str(out_cmd, data->conf->tc.cc);
 }
 
 static void
-comp_fmt_cflags(struct string *out_cmd, struct conf const *conf)
+comp_fmt_cflags(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, conf->tc.cflags);
+	struct comp_fmt_data const *data = vp_data;
+	string_push_c_str(out_cmd, data->conf->tc.cflags);
 }
 
 static void
-comp_fmt_source(struct string *out_cmd, char const *src)
+comp_fmt_source(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, src);
+	struct comp_fmt_data const *data = vp_data;
+	string_push_c_str(out_cmd, data->src);
 }
 
 static void
-comp_fmt_object(struct string *out_cmd, char const *obj)
+comp_fmt_object(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, obj);
+	struct comp_fmt_data const *data = vp_data;
+	string_push_c_str(out_cmd, data->obj);
 }
 
 static void
-comp_fmt_includes(struct string *out_cmd, struct conf const *conf)
+comp_inc_fmt_escape(struct string *out_cmd, void *vp_data)
 {
+	string_push_ch(out_cmd, FMT_SPEC_CH);
+}
+
+static void
+comp_inc_fmt_include(struct string *out_cmd, void *vp_data)
+{
+	string_push_c_str(out_cmd, vp_data);
+}
+
+static void
+comp_fmt_includes(struct string *out_cmd, void *vp_data)
+{
+	struct comp_fmt_data const *data = vp_data;
+	struct conf const *conf = data->conf;
+	
 	struct arraylist incs = arraylist_copy(&conf->deps.incs);
 	arraylist_add(&incs, conf->proj.inc_dir, strlen(conf->proj.inc_dir) + 1);
+
+	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
+	fmt_spec_add_ent(&spec, 0, comp_inc_fmt_escape);
+	fmt_spec_add_ent(&spec, FMT_SPEC_CH, comp_inc_fmt_escape);
+	fmt_spec_add_ent(&spec, 'i', comp_inc_fmt_include);
 	
 	for (size_t i = 0; i < incs.size; ++i) {
-		char const *fmt = conf->tc_info.cc_inc_fmt;
-		size_t fmt_len = strlen(fmt);
-		
-		for (size_t j = 0; j < fmt_len; ++j) {
-			if (fmt[j] != '%') {
-				string_push_ch(out_cmd, fmt[j]);
-				continue;
-			}
-
-			switch (fmt[++j]) {
-			case 'i':
-				string_push_c_str(out_cmd, incs.data[i]);
-				break;
-			case '%':
-			case 0:
-				string_push_ch(out_cmd, '%');
-				break;
-			default:
-				--j;
-				break;
-			}
-		}
-
+		fmt_inplace(out_cmd, &spec, conf->tc_info.cc_inc_fmt, incs.data[i]);
 		if (i < incs.size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
 
+	fmt_spec_destroy(&spec);
 	arraylist_destroy(&incs);
 }
 
 static void
-comp_fmt_escape(struct string *out_cmd)
+comp_fmt_escape(struct string *out_cmd, void *vp_data)
 {
-	string_push_ch(out_cmd, '%');
-}
-
-static void
-comp_fmt_default(struct string *out_cmd, char ch)
-{
-	string_push_ch(out_cmd, ch);
+	string_push_ch(out_cmd, FMT_SPEC_CH);
 }
 
 static void *
@@ -373,48 +382,26 @@ compile_worker(void *vp_arg)
 	struct conf const *conf = arg->conf;
 	struct build_info const *info = arg->info;
 
+	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
+	fmt_spec_add_ent(&spec, 0, comp_fmt_escape);
+	fmt_spec_add_ent(&spec, FMT_SPEC_CH, comp_fmt_escape);
+	fmt_spec_add_ent(&spec, 'c', comp_fmt_command);
+	fmt_spec_add_ent(&spec, 'f', comp_fmt_cflags);
+	fmt_spec_add_ent(&spec, 's', comp_fmt_source);
+	fmt_spec_add_ent(&spec, 'o', comp_fmt_object);
+	fmt_spec_add_ent(&spec, 'i', comp_fmt_includes);
+
 	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
 		char const *src = info->srcs.data[i], *obj = info->objs.data[i];
 		printf("(%zu/%zu)\t%s\n", ++*arg->out_progress, info->srcs.size, obj);
 
-		struct string cmd = string_create();
-		char const *fmt = conf->tc_info.cc_cmd_fmt;
-		size_t fmt_len = strlen(fmt);
+		struct comp_fmt_data data = {
+			.conf = conf,
+			.src = src,
+			.obj = obj,
+		};
 		
-		for (size_t j = 0; j < fmt_len; ++j) {
-			if (fmt[j] != '%') {
-				comp_fmt_default(&cmd, fmt[j]);
-				continue;
-			}
-
-			switch (fmt[++j]) {
-			case 'c':
-				comp_fmt_command(&cmd, conf);
-				break;
-			case 'f':
-				comp_fmt_cflags(&cmd, conf);
-				break;
-			case 's':
-				comp_fmt_source(&cmd, src);
-				break;
-			case 'o':
-				comp_fmt_object(&cmd, obj);
-				break;
-			case 'i':
-				comp_fmt_includes(&cmd, conf);
-				break;
-			case '%':
-			case 0:
-				comp_fmt_escape(&cmd);
-				break;
-			default:
-				--j;
-				break;
-			}
-		}
-		
-		char *cmd_unsan = string_to_c_str(&cmd);
-		string_destroy(&cmd);
+		char *cmd_unsan = fmt_c_str(&spec, conf->tc_info.cc_cmd_fmt, &data);
 		char *cmd_san = sanitize_cmd(cmd_unsan);
 		free(cmd_unsan);
 
@@ -429,6 +416,8 @@ compile_worker(void *vp_arg)
 			return NULL;
 		}
 	}
+
+	fmt_spec_destroy(&spec);
 
 	*arg->out_rc = conf->tc_info.cc_success_rc;
 	return NULL;
@@ -463,153 +452,129 @@ build_compile(struct conf const *conf, struct build_info *info)
 }
 
 static void
-link_fmt_command(struct string *out_cmd, struct conf const *conf)
+link_fmt_command(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, conf->tc.ld);
+	struct link_fmt_data const *data = vp_data;
+	string_push_c_str(out_cmd, data->conf->tc.ld);
 }
 
 static void
-link_fmt_ldflags(struct string *out_cmd, struct conf const *conf)
+link_fmt_ldflags(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, conf->tc.ldflags);
+	struct link_fmt_data const *data = vp_data;
+	string_push_c_str(out_cmd, data->conf->tc.ldflags);
 }
 
 static void
-link_fmt_objects(struct string *out_cmd, struct conf const *conf,
-                 struct arraylist const *objs)
+link_obj_fmt_escape(struct string *out_cmd, void *vp_data)
 {
+	string_push_ch(out_cmd, FMT_SPEC_CH);
+}
+
+static void
+link_obj_fmt_object(struct string *out_cmd, void *vp_data)
+{
+	string_push_c_str(out_cmd, vp_data);
+}
+
+static void
+link_fmt_objects(struct string *out_cmd, void *vp_data)
+{
+	struct link_fmt_data const *data = vp_data;
+	struct conf const *conf = data->conf;
+	struct arraylist const *objs = data->objs;
+
+	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
+	fmt_spec_add_ent(&spec, 0, link_obj_fmt_escape);
+	fmt_spec_add_ent(&spec, FMT_SPEC_CH, link_obj_fmt_escape);
+	fmt_spec_add_ent(&spec, 'o', link_obj_fmt_object);
+	
 	for (size_t i = 0; i < objs->size; ++i) {
-		char const *fmt = conf->tc_info.ld_obj_fmt;
-		size_t fmt_len = strlen(fmt);
-		
-		for (size_t j = 0; j < fmt_len; ++j) {
-			if (fmt[j] != '%') {
-				string_push_ch(out_cmd, fmt[j]);
-				continue;
-			}
-
-			switch (fmt[++j]) {
-			case 'o':
-				string_push_c_str(out_cmd, objs->data[i]);
-				break;
-			case '%':
-			case 0:
-				string_push_ch(out_cmd, '%');
-				break;
-			default:
-				--j;
-				break;
-			}
-		}
-
+		fmt_inplace(out_cmd, &spec, conf->tc_info.ld_obj_fmt, objs->data[i]);
 		if (i < objs->size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
+
+	fmt_spec_destroy(&spec);
 }
 
 static void
-link_fmt_output(struct string *out_cmd, struct conf const *conf)
+link_fmt_output(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, conf->proj.output);
+	struct link_fmt_data const *data = vp_data;
+	string_push_c_str(out_cmd, data->conf->proj.output);
 }
 
 static void
-link_fmt_libraries(struct string *out_cmd, struct conf const *conf)
+link_lib_fmt_escape(struct string *out_cmd, void *vp_data)
 {
-	for (size_t i = 0; i < conf->deps.libs.size; ++i) {
-		char const *fmt = conf->tc_info.ld_lib_fmt;
-		size_t fmt_len = strlen(fmt);
-		
-		for (size_t j = 0; j < fmt_len; ++j) {
-			if (fmt[j] != '%') {
-				string_push_ch(out_cmd, fmt[j]);
-				continue;
-			}
+	string_push_ch(out_cmd, FMT_SPEC_CH);
+}
 
-			switch (fmt[++j]) {
-			case 'l':
-				string_push_c_str(out_cmd, conf->deps.libs.data[i]);
-				break;
-			case '%':
-			case 0:
-				string_push_ch(out_cmd, '%');
-				break;
-			default:
-				--j;
-				break;
-			}
-		}
+static void
+link_lib_fmt_library(struct string *out_cmd, void *vp_data)
+{
+	string_push_c_str(out_cmd, vp_data);
+}
 
-		if (i < conf->deps.libs.size - 1)
+static void
+link_fmt_libraries(struct string *out_cmd, void *vp_data)
+{
+	struct link_fmt_data const *data = vp_data;
+	struct conf const *conf = data->conf;
+	struct arraylist const *libs = &conf->deps.libs;
+
+	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
+	fmt_spec_add_ent(&spec, 0, link_lib_fmt_escape);
+	fmt_spec_add_ent(&spec, FMT_SPEC_CH, link_lib_fmt_escape);
+	fmt_spec_add_ent(&spec, 'l', link_lib_fmt_library);
+	
+	for (size_t i = 0; i < libs->size; ++i) {
+		fmt_inplace(out_cmd, &spec, conf->tc_info.ld_lib_fmt, libs->data[i]);
+		if (i < libs->size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
+
+	fmt_spec_destroy(&spec);
 }
 
 static void
-link_fmt_escape(struct string *out_cmd)
+link_fmt_escape(struct string *out_cmd, void *vp_data)
 {
-	string_push_ch(out_cmd, '%');
-}
-
-static void
-link_fmt_default(struct string *out_cmd, char ch)
-{
-	string_push_ch(out_cmd, ch);
+	string_push_ch(out_cmd, FMT_SPEC_CH);
 }
 
 void
-build_link(struct conf const *conf, struct build_info const *info)
+build_link(struct conf const *conf)
 {
 	log_info("linking project");
-
-	struct string cmd = string_create();
-	char const *fmt = conf->tc_info.ld_cmd_fmt;
-	size_t fmt_len = strlen(fmt);
 
 	// get all project object files, including those omitted during compilation.
 	struct arraylist obj_exts = arraylist_create();
 	arraylist_add(&obj_exts, "o", 2);
 	struct arraylist all_objs = ext_files(conf->proj.lib_dir, &obj_exts);
 
-	for (size_t i = 0; i < fmt_len; ++i) {
-		if (fmt[i] != '%') {
-			link_fmt_default(&cmd, fmt[i]);
-			continue;
-		}
+	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
+	fmt_spec_add_ent(&spec, 0, link_fmt_escape);
+	fmt_spec_add_ent(&spec, FMT_SPEC_CH, link_fmt_escape);
+	fmt_spec_add_ent(&spec, 'c', link_fmt_command);
+	fmt_spec_add_ent(&spec, 'f', link_fmt_ldflags);
+	fmt_spec_add_ent(&spec, 'o', link_fmt_objects);
+	fmt_spec_add_ent(&spec, 'b', link_fmt_output);
+	fmt_spec_add_ent(&spec, 'l', link_fmt_libraries);
 
-		switch (fmt[++i]) {
-		case 'c':
-			link_fmt_command(&cmd, conf);
-			break;
-		case 'f':
-			link_fmt_ldflags(&cmd, conf);
-			break;
-		case 'o':
-			link_fmt_objects(&cmd, conf, &all_objs);
-			break;
-		case 'b':
-			link_fmt_output(&cmd, conf);
-			break;
-		case 'l':
-			link_fmt_libraries(&cmd, conf);
-			break;
-		case '%':
-		case 0:
-			link_fmt_escape(&cmd);
-			break;
-		default:
-			--i;
-			break;
-		}
-	}
+	struct link_fmt_data data = {
+		.conf = conf,
+		.objs = &all_objs,
+	};
 
-	arraylist_destroy(&obj_exts);
-	arraylist_destroy(&all_objs);
-
-	char *cmd_unsan = string_to_c_str(&cmd);
-	string_destroy(&cmd);
+	char *cmd_unsan = fmt_c_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
 	char *cmd_san = sanitize_cmd(cmd_unsan);
 	free(cmd_unsan);
+
+	fmt_spec_destroy(&spec);
+	arraylist_destroy(&obj_exts);
+	arraylist_destroy(&all_objs);
 
 	cmd_mkdir_p(conf->proj.output);
 	cmd_rmdir(conf->proj.output);

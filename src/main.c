@@ -20,7 +20,7 @@ main(int argc, char const *argv[])
 	build_prune(&conf, &info);
 	build_compile(&conf, &info);
 	if (conf.proj.produce_output)
-		build_link(&conf, &info);
+		build_link(&conf);
 
 	build_info_destroy(&info);
 	conf_destroy(&conf);

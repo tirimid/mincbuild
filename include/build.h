@@ -14,6 +14,6 @@ void build_info_destroy(struct build_info *info);
 
 void build_prune(struct conf const *conf, struct build_info *info);
 void build_compile(struct conf const *conf, struct build_info *info);
-void build_link(struct conf const *conf, struct build_info const *info);
+void build_link(struct conf const *conf);
 
 #endif
