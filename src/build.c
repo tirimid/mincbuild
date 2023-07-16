@@ -122,7 +122,7 @@ ext_files(char *dir, struct arraylist const *exts)
 		char const *path = fts_ent->fts_path, *ext = file_ext(path);
 		size_t path_len = fts_ent->fts_pathlen + 1;
 
-		if (arraylist_contains(exts, ext))
+		if (arraylist_contains(exts, ext, strlen(ext) + 1))
 			arraylist_add(&files, path, path_len);
 	}
 
@@ -212,8 +212,10 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 	// which have already been checked, preventing excess resource usage and
 	// hanging with coupled inclusions.
 	for (size_t i = 0; i < incs.size; ++i) {
-		if (!arraylist_contains(&info->hdrs, incs.data[i])
-		    || arraylist_contains(chkd_incs, incs.data[i])) {
+		size_t idlen = strlen(incs.data[i]);
+		
+		if (!arraylist_contains(&info->hdrs, incs.data[i], idlen)
+		    || arraylist_contains(chkd_incs, incs.data[i], idlen)) {
 			arraylist_rm(&incs, i);
 			--i;
 		}

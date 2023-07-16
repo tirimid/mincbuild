@@ -24,9 +24,23 @@ Software / system dependencies are:
 * `mkdir`, `rmdir`, `grep`, `nproc` programs available on system
 * A shell environment for program execution
 
-## Building
-1. Run `./bootstrap.sh` for bootstrapping mincbuild
-2. Run `./mincbuild`, rebuilding the now-selfhosted project
+## Management
+* To bootstrap the program, run `./bootstrap.sh`
+* To rebuild using the bootstrapped program, run `./mincbuild`
+* To install the program, run `./install.sh`
+* To remove program files from system, run `./uninstall.sh`
+
+## Usage
+After installation,
+1. Navigate to a project directory containing the mincbuild JSON file
+2. Run `mincbuild` if the mincbuild JSON file is called `mincbuild.json`, and
+`mincbuild file.json` if the file is called `file.json`
+
+## Contributing
+I am not accepting pull requests unless they refactor code to make it smaller
+and more readable. I am definitely not accepting pull requests which implement
+features unless I *really* like them. Feel free to fork this project and make
+your own version.
 
 ## Vulnerability note
 mincbuild is designed to be extremely simple and only do the bare minimum of
