@@ -2,7 +2,6 @@
 #define UTIL_H__
 
 void cmd_mkdir_p(char const *dir);
-void cmd_rmdir(char const *dir);
 char *sanitize_cmd(char const *cmd);
 
 #endif

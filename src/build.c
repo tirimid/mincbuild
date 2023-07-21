@@ -16,6 +16,7 @@
 #include <tmcul/file.h>
 #include <tmcul/log.h>
 #include <tmcul/fmt.h>
+#include <unistd.h>
 
 #include "util.h"
 
@@ -408,7 +409,7 @@ compile_worker(void *vp_arg)
 		free(cmd_unsan);
 
 		cmd_mkdir_p(obj);
-		cmd_rmdir(obj);
+		rmdir(obj);
 
 		int rc = system(cmd_san);
 		free(cmd_san);
@@ -579,7 +580,7 @@ build_link(struct conf const *conf)
 	arraylist_destroy(&all_objs);
 
 	cmd_mkdir_p(conf->proj.output);
-	cmd_rmdir(conf->proj.output);
+	rmdir(conf->proj.output);
 
 	int rc = system(cmd_san);
 	free(cmd_san);

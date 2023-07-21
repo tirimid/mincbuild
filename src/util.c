@@ -26,22 +26,6 @@ cmd_mkdir_p(char const *dir)
 	free(cmd);
 }
 
-void
-cmd_rmdir(char const *dir)
-{
-	struct stat s;
-	if (stat(dir, &s) || !S_ISDIR(s.st_mode))
-		return;
-	
-	char *cmd = malloc(7 + strlen(dir));
-	sprintf(cmd, "rmdir %s", dir);
-	char *san_cmd = sanitize_cmd(cmd);
-	system(san_cmd);
-	
-	free(san_cmd);
-	free(cmd);
-}
-
 char *
 sanitize_cmd(char const *cmd)
 {
