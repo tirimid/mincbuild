@@ -1,5 +1,6 @@
 #include "conf.h"
 
+#include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stddef.h>
@@ -7,8 +8,6 @@
 
 #include <json-c/json.h>
 #include <sys/stat.h>
-#include <tmcul/log.h>
-#include <tmcul/file.h>
 
 #include "util.h"
 
@@ -42,7 +41,7 @@ json_get_str(json_object const *json, char const *sct, char const *key,
 	return str;
 }
 
-static struct arraylist
+static struct strlist
 json_get_str_list(json_object const *json, char const *sct, char const *key,
                   char const *file)
 {
@@ -50,20 +49,19 @@ json_get_str_list(json_object const *json, char const *sct, char const *key,
 	if (!json_object_is_type(key_obj, json_type_array))
 		log_fail("in %s, '%s.%s' must be a string array", file, sct, key);
 
-	struct arraylist str_list = arraylist_create();
+	struct strlist sl = strlist_create();
 
 	for (size_t i = 0; i < json_object_array_length(key_obj); ++i) {
 		json_object *arr_obj = json_object_array_get_idx(key_obj, i);
 		if (!json_object_is_type(arr_obj, json_type_string))
-			log_fail("in %s, '%s.%s' must only be strings", file, sct, key);
+			log_fail("in %s, '%s.%s' must only have strings", file, sct, key);
 
 		size_t str_len = json_object_get_string_len(arr_obj);
 		char const *str = json_object_get_string(arr_obj);
-		arraylist_add(&str_list, str, str_len + 1);
-		*((char *)str_list.data[i] + str_len) = 0;
+		strlist_add(&sl, str);
 	}
 	
-	return str_list;
+	return sl;
 }
 
 static bool
@@ -91,9 +89,17 @@ json_get_int(json_object const *json, char const *sct, char const *key,
 struct conf
 conf_from_file(char const *file)
 {
-	char *file_conts = file_read(file, NULL);
-	if (!file_conts)
+	FILE *file_p = fopen(file, "rb");
+	if (!file_p)
 		log_fail("cannot open file %s", file);
+
+	fseek(file_p, 0, SEEK_END);
+	size_t file_size = ftell(file_p);
+	fseek(file_p, 0, SEEK_SET);
+
+	char *file_conts = malloc(file_size + 1);
+	fread(file_conts, 1, file_size, file_p);
+	file_conts[file_size] = 0;
 	
 	json_object *json = json_tokener_parse(file_conts);
 	if (!json)
@@ -130,6 +136,7 @@ conf_from_file(char const *file)
 
 	json_object_put(json);
 	free(file_conts);
+	fclose(file_p);
 	
 	return conf;
 }
@@ -171,8 +178,8 @@ conf_destroy(struct conf *conf)
 	free(conf->proj.src_dir);
 	free(conf->proj.inc_dir);
 	free(conf->proj.lib_dir);
-	arraylist_destroy(&conf->proj.src_exts);
-	arraylist_destroy(&conf->proj.hdr_exts);
+	strlist_destroy(&conf->proj.src_exts);
+	strlist_destroy(&conf->proj.hdr_exts);
 
 	if (conf->proj.produce_output) {
 		free(conf->tc.ld);
@@ -181,7 +188,7 @@ conf_destroy(struct conf *conf)
 		free(conf->tc_info.ld_obj_fmt);
 		free(conf->tc_info.ld_cmd_fmt);
 		free(conf->proj.output);
-		arraylist_destroy(&conf->deps.incs);
-		arraylist_destroy(&conf->deps.libs);
+		strlist_destroy(&conf->deps.incs);
+		strlist_destroy(&conf->deps.libs);
 	}
 }

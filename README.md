@@ -20,8 +20,8 @@ mincbuild is designed for Linux. Do not expect it to work (or even compile) on
 your Windows machine.
 
 Software / system dependencies are:
-* `json-c`, `pthread`, `libtmcul` C libraries
-* `mkdir`, `rmdir`, `grep`, `nproc` programs available on system
+* `json-c`, `pthread` C libraries
+* `mkdir`, `grep`, `nproc` programs available on system
 * A shell environment for program execution
 
 ## Management

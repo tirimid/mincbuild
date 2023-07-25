@@ -3,14 +3,7 @@
 
 #include <stdbool.h>
 
-#include <tmcul/ds/arraylist.h>
-
-// compile-time configuration.
-// this information is used by mincbuild but is not important to the user.
-// change this if, for example, you want to use ripgrep instead of grep for the
-// build process.
-#define CMD_GREP "/usr/bin/grep"
-#define CMD_NPROC "/usr/bin/nproc"
+#include "util.h"
 
 struct conf {
 	struct {
@@ -28,12 +21,12 @@ struct conf {
 		char *src_dir, *inc_dir, *lib_dir;
 		bool produce_output;
 		char *output;
-		struct arraylist src_exts, hdr_exts;
+		struct strlist src_exts, hdr_exts;
 	} proj;
 
 	struct {
-		struct arraylist incs;
-		struct arraylist libs;
+		struct strlist incs;
+		struct strlist libs;
 	} deps;
 };
 

@@ -1,9 +1,6 @@
 #include "build.h"
 
-#define _POSIX_C_SOURCE 200809
 #include <stdio.h>
-#undef _POSIX_C_SOURCE
-
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -12,16 +9,12 @@
 #include <fts.h>
 #include <sys/stat.h>
 #include <pthread.h>
-#include <tmcul/ds/string.h>
-#include <tmcul/file.h>
-#include <tmcul/log.h>
-#include <tmcul/fmt.h>
 #include <unistd.h>
 
 #include "util.h"
 
-#define INCLUDE_REGEX "#\\s*include\\s*[<\\\"].*[>\\\"]"
-#define FMT_SPEC_CH '%'
+#define CMD_GREP_INCLUDE "/usr/bin/grep \"#\\s*include\\s*[<\\\"].*[>\\\"]\""
+#define CMD_NPROC "/usr/bin/nproc"
 
 struct thread_arg {
 	size_t start, cnt;
@@ -46,7 +39,7 @@ struct comp_fmt_data {
 
 struct link_fmt_data {
 	struct conf const *conf;
-	struct arraylist const *objs;
+	struct strlist const *objs;
 };
 
 static int
@@ -100,8 +93,8 @@ work_info_destroy(struct work_info *winfo)
 	free(winfo->workers);
 }
 
-static struct arraylist
-ext_files(char *dir, struct arraylist const *exts)
+static struct strlist
+ext_files(char *dir, struct strlist const *exts)
 {
 	unsigned long fts_opts = FTS_LOGICAL | FTS_COMFOLLOW | FTS_NOCHDIR;
 	char *const fts_dirs[] = {dir, NULL};
@@ -110,7 +103,7 @@ ext_files(char *dir, struct arraylist const *exts)
 	if (!fts_p)
 		log_fail("error on fts_open()");
 
-	struct arraylist files = arraylist_create();
+	struct strlist files = strlist_create();
 
 	if (!fts_children(fts_p, 0))
 		return files;
@@ -120,11 +113,11 @@ ext_files(char *dir, struct arraylist const *exts)
 		if (fts_ent->fts_info != FTS_F)
 			continue;
 
-		char const *path = fts_ent->fts_path, *ext = file_ext(path);
-		size_t path_len = fts_ent->fts_pathlen + 1;
+		char const *path = fts_ent->fts_path, *ext = strrchr(path, '.');
+		ext = ext && ext != path ? ext + 1 : "\0";
 
-		if (arraylist_contains(exts, ext, strlen(ext) + 1))
-			arraylist_add(&files, path, path_len);
+		if (strlist_contains(exts, ext))
+			strlist_add(&files, path);
 	}
 
 	fts_close(fts_p);
@@ -137,7 +130,7 @@ build_info_get(struct conf const *conf)
 	struct build_info info = {
 		.srcs = ext_files(conf->proj.src_dir, &conf->proj.src_exts),
 		.hdrs = ext_files(conf->proj.inc_dir, &conf->proj.hdr_exts),
-		.objs = arraylist_create(),
+		.objs = strlist_create(),
 	};
 
 	size_t src_dir_len = strlen(conf->proj.src_dir);
@@ -149,7 +142,7 @@ build_info_get(struct conf const *conf)
 
 		char *obj = malloc(lib_dir_len + strlen(src) + 4);
 		sprintf(obj, "%s/%s.o", conf->proj.lib_dir, src);
-		arraylist_add(&info.objs, obj, strlen(obj) + 1);
+		strlist_add(&info.objs, obj);
 		free(obj);
 	}
 	
@@ -159,28 +152,26 @@ build_info_get(struct conf const *conf)
 void
 build_info_destroy(struct build_info *info)
 {
-	arraylist_destroy(&info->srcs);
-	arraylist_destroy(&info->hdrs);
-	arraylist_destroy(&info->objs);
+	strlist_destroy(&info->srcs);
+	strlist_destroy(&info->hdrs);
+	strlist_destroy(&info->objs);
 }
 
 static bool
 chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
-                struct conf const *conf, struct arraylist *chkd_incs)
+                struct conf const *conf, struct strlist *chkd_incs)
 {
 	char *path_san = sanitize_cmd(path);
-	struct arraylist incs = arraylist_create();
-
-	size_t grep_len = strlen(CMD_GREP), inc_regex_len = strlen(INCLUDE_REGEX);
+	struct strlist incs = strlist_create();
 
 	// find all includes in file, and add them to `incs`.
-	char *cmd = malloc(grep_len + strlen(path_san) + inc_regex_len + 5);
-	sprintf(cmd, CMD_GREP " \"" INCLUDE_REGEX "\" %s", path_san);
+	char *cmd = malloc(strlen(CMD_GREP_INCLUDE) + strlen(path_san) + 2);
+	sprintf(cmd, CMD_GREP_INCLUDE " %s", path_san);
 
 	FILE *fp = popen(cmd, "r");
 	if (!fp)
-		log_fail("failed to popen() " CMD_GREP);
-
+		log_fail("failed to popen() " CMD_GREP_INCLUDE);
+	
 	free(cmd);
 	free(path_san);
 
@@ -192,16 +183,15 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 		// isolate filename of include directive, which can then be accessed
 		// via the `inc_file` variable.
 		for (inc_file = inc; !strchr("<\"", *inc_file); ++inc_file);
-		*inc_file++ = 0;
+		++inc_file;
 		
 		for (inc_len = 0; !strchr(">\"", inc_file[inc_len]); ++inc_len);
 		inc_file[inc_len] = 0;
 
 		// then, add found includes to `incs`.
-		size_t inc_path_size = strlen(conf->proj.inc_dir) + inc_len + 2;
-		char *inc_path = malloc(inc_path_size);
+		char *inc_path = malloc(strlen(conf->proj.inc_dir) + inc_len + 2);
 		sprintf(inc_path, "%s/%s", conf->proj.inc_dir, inc_file);
-		arraylist_add(&incs, inc_path, inc_path_size);
+		strlist_add(&incs, inc_path);
 			
 		free(inc_path);
 	}
@@ -215,9 +205,9 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 	for (size_t i = 0; i < incs.size; ++i) {
 		size_t idlen = strlen(incs.data[i]);
 		
-		if (!arraylist_contains(&info->hdrs, incs.data[i], idlen)
-		    || arraylist_contains(chkd_incs, incs.data[i], idlen)) {
-			arraylist_rm(&incs, i);
+		if (!strlist_contains(&info->hdrs, incs.data[i])
+		    || strlist_contains(chkd_incs, incs.data[i])) {
+			strlist_rm(&incs, i);
 			--i;
 		}
 	}
@@ -228,12 +218,12 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 	bool rebuild = difftime(s.st_mtime, obj_mt) > 0.0;
 
 	for (size_t i = 0; i < incs.size && !rebuild; ++i) {
-		arraylist_add(chkd_incs, incs.data[i], incs.data_sizes[i]);
+		strlist_add(chkd_incs, incs.data[i]);
 		rebuild = rebuild || chk_inc_rebuild(info, incs.data[i], obj_mt, conf,
 		                                     chkd_incs);
 	}
 
-	arraylist_destroy(&incs);
+	strlist_destroy(&incs);
 	return rebuild;
 }
 
@@ -257,7 +247,7 @@ prune_worker(void *vp_arg)
 		if (dt > 0.0)
 			continue;
 
-		struct arraylist chkd_incs = arraylist_create();
+		struct strlist chkd_incs = strlist_create();
 		if (chk_inc_rebuild(info, info->srcs.data[i], obj_mt, conf, &chkd_incs))
 			goto cleanup;
 
@@ -269,7 +259,7 @@ prune_worker(void *vp_arg)
 		info->srcs.data[i] = info->objs.data[i] = NULL;
 
 	cleanup:
-		arraylist_destroy(&chkd_incs);
+		strlist_destroy(&chkd_incs);
 	}
 
 	return NULL;
@@ -298,11 +288,11 @@ build_prune(struct conf const *conf, struct build_info *info)
 
 	work_info_destroy(&winfo);
 
-	// remove sources/objects marked for pruning from arraylists.
+	// remove sources/objects marked for pruning from strlists.
 	for (size_t i = 0; i < info->srcs.size; ++i) {
 		if (!info->srcs.data[i]) {
-			arraylist_rm_no_free(&info->srcs, i);
-			arraylist_rm_no_free(&info->objs, i);
+			strlist_rm_no_free(&info->srcs, i);
+			strlist_rm_no_free(&info->objs, i);
 			--i;
 		}
 	}
@@ -312,40 +302,34 @@ static void
 comp_fmt_command(struct string *out_cmd, void *vp_data)
 {
 	struct comp_fmt_data const *data = vp_data;
-	string_push_c_str(out_cmd, data->conf->tc.cc);
+	string_push_str(out_cmd, data->conf->tc.cc);
 }
 
 static void
 comp_fmt_cflags(struct string *out_cmd, void *vp_data)
 {
 	struct comp_fmt_data const *data = vp_data;
-	string_push_c_str(out_cmd, data->conf->tc.cflags);
+	string_push_str(out_cmd, data->conf->tc.cflags);
 }
 
 static void
 comp_fmt_source(struct string *out_cmd, void *vp_data)
 {
 	struct comp_fmt_data const *data = vp_data;
-	string_push_c_str(out_cmd, data->src);
+	string_push_str(out_cmd, data->src);
 }
 
 static void
 comp_fmt_object(struct string *out_cmd, void *vp_data)
 {
 	struct comp_fmt_data const *data = vp_data;
-	string_push_c_str(out_cmd, data->obj);
-}
-
-static void
-comp_inc_fmt_escape(struct string *out_cmd, void *vp_data)
-{
-	string_push_ch(out_cmd, FMT_SPEC_CH);
+	string_push_str(out_cmd, data->obj);
 }
 
 static void
 comp_inc_fmt_include(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, vp_data);
+	string_push_str(out_cmd, vp_data);
 }
 
 static void
@@ -354,12 +338,10 @@ comp_fmt_includes(struct string *out_cmd, void *vp_data)
 	struct comp_fmt_data const *data = vp_data;
 	struct conf const *conf = data->conf;
 	
-	struct arraylist incs = arraylist_copy(&conf->deps.incs);
-	arraylist_add(&incs, conf->proj.inc_dir, strlen(conf->proj.inc_dir) + 1);
+	struct strlist incs = strlist_copy(&conf->deps.incs);
+	strlist_add(&incs, conf->proj.inc_dir);
 
-	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
-	fmt_spec_add_ent(&spec, 0, comp_inc_fmt_escape);
-	fmt_spec_add_ent(&spec, FMT_SPEC_CH, comp_inc_fmt_escape);
+	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'i', comp_inc_fmt_include);
 	
 	for (size_t i = 0; i < incs.size; ++i) {
@@ -369,13 +351,7 @@ comp_fmt_includes(struct string *out_cmd, void *vp_data)
 	}
 
 	fmt_spec_destroy(&spec);
-	arraylist_destroy(&incs);
-}
-
-static void
-comp_fmt_escape(struct string *out_cmd, void *vp_data)
-{
-	string_push_ch(out_cmd, FMT_SPEC_CH);
+	strlist_destroy(&incs);
 }
 
 static void *
@@ -385,9 +361,7 @@ compile_worker(void *vp_arg)
 	struct conf const *conf = arg->conf;
 	struct build_info const *info = arg->info;
 
-	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
-	fmt_spec_add_ent(&spec, 0, comp_fmt_escape);
-	fmt_spec_add_ent(&spec, FMT_SPEC_CH, comp_fmt_escape);
+	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'c', comp_fmt_command);
 	fmt_spec_add_ent(&spec, 'f', comp_fmt_cflags);
 	fmt_spec_add_ent(&spec, 's', comp_fmt_source);
@@ -397,14 +371,14 @@ compile_worker(void *vp_arg)
 	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
 		char const *src = info->srcs.data[i], *obj = info->objs.data[i];
 		printf("(%zu/%zu)\t%s\n", ++*arg->out_progress, info->srcs.size, obj);
-
+		
 		struct comp_fmt_data data = {
 			.conf = conf,
 			.src = src,
 			.obj = obj,
 		};
 		
-		char *cmd_unsan = fmt_c_str(&spec, conf->tc_info.cc_cmd_fmt, &data);
+		char *cmd_unsan = fmt_str(&spec, conf->tc_info.cc_cmd_fmt, &data);
 		char *cmd_san = sanitize_cmd(cmd_unsan);
 		free(cmd_unsan);
 
@@ -458,26 +432,20 @@ static void
 link_fmt_command(struct string *out_cmd, void *vp_data)
 {
 	struct link_fmt_data const *data = vp_data;
-	string_push_c_str(out_cmd, data->conf->tc.ld);
+	string_push_str(out_cmd, data->conf->tc.ld);
 }
 
 static void
 link_fmt_ldflags(struct string *out_cmd, void *vp_data)
 {
 	struct link_fmt_data const *data = vp_data;
-	string_push_c_str(out_cmd, data->conf->tc.ldflags);
-}
-
-static void
-link_obj_fmt_escape(struct string *out_cmd, void *vp_data)
-{
-	string_push_ch(out_cmd, FMT_SPEC_CH);
+	string_push_str(out_cmd, data->conf->tc.ldflags);
 }
 
 static void
 link_obj_fmt_object(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, vp_data);
+	string_push_str(out_cmd, vp_data);
 }
 
 static void
@@ -485,11 +453,9 @@ link_fmt_objects(struct string *out_cmd, void *vp_data)
 {
 	struct link_fmt_data const *data = vp_data;
 	struct conf const *conf = data->conf;
-	struct arraylist const *objs = data->objs;
+	struct strlist const *objs = data->objs;
 
-	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
-	fmt_spec_add_ent(&spec, 0, link_obj_fmt_escape);
-	fmt_spec_add_ent(&spec, FMT_SPEC_CH, link_obj_fmt_escape);
+	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'o', link_obj_fmt_object);
 	
 	for (size_t i = 0; i < objs->size; ++i) {
@@ -505,19 +471,13 @@ static void
 link_fmt_output(struct string *out_cmd, void *vp_data)
 {
 	struct link_fmt_data const *data = vp_data;
-	string_push_c_str(out_cmd, data->conf->proj.output);
-}
-
-static void
-link_lib_fmt_escape(struct string *out_cmd, void *vp_data)
-{
-	string_push_ch(out_cmd, FMT_SPEC_CH);
+	string_push_str(out_cmd, data->conf->proj.output);
 }
 
 static void
 link_lib_fmt_library(struct string *out_cmd, void *vp_data)
 {
-	string_push_c_str(out_cmd, vp_data);
+	string_push_str(out_cmd, vp_data);
 }
 
 static void
@@ -525,11 +485,9 @@ link_fmt_libraries(struct string *out_cmd, void *vp_data)
 {
 	struct link_fmt_data const *data = vp_data;
 	struct conf const *conf = data->conf;
-	struct arraylist const *libs = &conf->deps.libs;
+	struct strlist const *libs = &conf->deps.libs;
 
-	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
-	fmt_spec_add_ent(&spec, 0, link_lib_fmt_escape);
-	fmt_spec_add_ent(&spec, FMT_SPEC_CH, link_lib_fmt_escape);
+	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'l', link_lib_fmt_library);
 	
 	for (size_t i = 0; i < libs->size; ++i) {
@@ -541,25 +499,17 @@ link_fmt_libraries(struct string *out_cmd, void *vp_data)
 	fmt_spec_destroy(&spec);
 }
 
-static void
-link_fmt_escape(struct string *out_cmd, void *vp_data)
-{
-	string_push_ch(out_cmd, FMT_SPEC_CH);
-}
-
 void
 build_link(struct conf const *conf)
 {
 	log_info("linking project");
 
 	// get all project object files, including those omitted during compilation.
-	struct arraylist obj_exts = arraylist_create();
-	arraylist_add(&obj_exts, "o", 2);
-	struct arraylist all_objs = ext_files(conf->proj.lib_dir, &obj_exts);
+	struct strlist obj_exts = strlist_create();
+	strlist_add(&obj_exts, "o");
+	struct strlist all_objs = ext_files(conf->proj.lib_dir, &obj_exts);
 
-	struct fmt_spec spec = fmt_spec_create(FMT_SPEC_CH);
-	fmt_spec_add_ent(&spec, 0, link_fmt_escape);
-	fmt_spec_add_ent(&spec, FMT_SPEC_CH, link_fmt_escape);
+	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'c', link_fmt_command);
 	fmt_spec_add_ent(&spec, 'f', link_fmt_ldflags);
 	fmt_spec_add_ent(&spec, 'o', link_fmt_objects);
@@ -571,13 +521,13 @@ build_link(struct conf const *conf)
 		.objs = &all_objs,
 	};
 
-	char *cmd_unsan = fmt_c_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
+	char *cmd_unsan = fmt_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
 	char *cmd_san = sanitize_cmd(cmd_unsan);
 	free(cmd_unsan);
 
 	fmt_spec_destroy(&spec);
-	arraylist_destroy(&obj_exts);
-	arraylist_destroy(&all_objs);
+	strlist_destroy(&obj_exts);
+	strlist_destroy(&all_objs);
 
 	cmd_mkdir_p(conf->proj.output);
 	rmdir(conf->proj.output);

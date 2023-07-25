@@ -1,6 +1,6 @@
 CC=gcc
-CFLAGS="-std=c99 -pedantic -Iinclude"
-LIBS="-ljson-c -lpthread -ltmcul"
+CFLAGS="-std=c99 -pedantic -Iinclude -D_POSIX_C_SOURCE=200809"
+LIBS="-ljson-c -lpthread"
 
 OUT_NAME=mincbuild
 
