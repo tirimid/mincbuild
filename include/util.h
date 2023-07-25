@@ -40,7 +40,6 @@ struct strlist strlist_copy(struct strlist const *s);
 void strlist_add(struct strlist *s, char const *new);
 void strlist_rm(struct strlist *s, size_t ind);
 void strlist_rm_no_free(struct strlist *s, size_t ind);
-void strlist_rm_no_free(struct strlist *s, size_t ind);
 bool strlist_contains(struct strlist const *s, char const *str);
 
 struct fmt_spec fmt_spec_create(void);
