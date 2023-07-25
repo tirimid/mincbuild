@@ -1,14 +1,14 @@
 #include "build.h"
 
-#include <stdio.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #include <fts.h>
-#include <sys/stat.h>
 #include <pthread.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 #include "util.h"

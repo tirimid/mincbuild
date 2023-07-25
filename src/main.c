@@ -1,7 +1,7 @@
 #include <stdio.h>
 
-#include "conf.h"
 #include "build.h"
+#include "conf.h"
 
 #define DEFAULT_CONF_FILE "mincbuild.json"
 

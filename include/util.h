@@ -1,8 +1,8 @@
 #ifndef UTIL_H__
 #define UTIL_H__
 
-#include <stddef.h>
 #include <stdbool.h>
+#include <stddef.h>
 
 struct string {
 	char *str;
