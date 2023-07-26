@@ -242,10 +242,16 @@ cmd_mkdir_p(char const *dir)
 	char *cmd = malloc(10 + strlen(dir));
 	sprintf(cmd, "mkdir -p %s", dir);
 	char *san_cmd = sanitize_cmd(cmd);
-	system(san_cmd);
+
+	int rc = system(san_cmd);
 	
 	free(san_cmd);
 	free(cmd);
+
+	// note that similar checks for `rmdir()` are not necessary, as `rmdir()` is
+	// only called directly after `cmd_mkdir_p()` in the code.
+	if (rc)
+		log_fail("failed to make file/directory at %s\n", dir);
 }
 
 char *
