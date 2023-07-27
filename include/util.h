@@ -51,7 +51,7 @@ void fmt_inplace(struct string *out_str, struct fmt_spec const *f,
                  char const *fmt, void *data);
 char *fmt_str(struct fmt_spec const *f, char const *fmt, void *data);
 
-void cmd_mkdir_p(char const *dir);
-char *sanitize_cmd(char const *cmd);
+void mkdir_recursive(char const *dir);
+char *sanitize_path(char const *path);
 
 #endif

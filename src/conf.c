@@ -100,6 +100,8 @@ conf_from_file(char const *file)
 	char *file_conts = malloc(file_size + 1);
 	fread(file_conts, 1, file_size, file_p);
 	file_conts[file_size] = 0;
+
+	fclose(file_p);
 	
 	json_object *json = json_tokener_parse(file_conts);
 	if (!json)
@@ -136,7 +138,6 @@ conf_from_file(char const *file)
 
 	json_object_put(json);
 	free(file_conts);
-	fclose(file_p);
 	
 	return conf;
 }
@@ -152,12 +153,12 @@ conf_validate(struct conf const *conf)
 
 	if (stat(conf->proj.inc_dir, &s)) {
 		log_warn("no include directory (%s), creating", conf->proj.inc_dir);
-		cmd_mkdir_p(conf->proj.inc_dir);
+		mkdir_recursive(conf->proj.inc_dir);
 	}
 
 	if (stat(conf->proj.lib_dir, &s)) {
 		log_warn("no build directory (%s), creating", conf->proj.lib_dir);
-		cmd_mkdir_p(conf->proj.lib_dir);
+		mkdir_recursive(conf->proj.lib_dir);
 	}
 
 	// make sure system has specified compiler and linker.

@@ -8,13 +8,14 @@
 
 #include <fts.h>
 #include <pthread.h>
+#include <regex.h>
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 #include <unistd.h>
 
 #include "util.h"
 
-#define CMD_GREP_INCLUDE "/usr/bin/grep \"#\\s*include\\s*[<\\\"].*[>\\\"]\""
-#define CMD_NPROC "/usr/bin/nproc"
+#define INCLUDE_REGEX "#\\s*include\\s*[<\"].+[>\"]"
 
 struct thread_arg {
 	size_t start, cnt;
@@ -42,28 +43,11 @@ struct link_fmt_data {
 	struct strlist const *objs;
 };
 
-static int
-get_worker_cnt(size_t task_cnt)
-{
-	FILE *fp = popen(CMD_NPROC, "r");
-	if (!fp)
-		log_fail("failed to popen() " CMD_NPROC);
-
-	char buf[32] = {0};
-	int worker_cnt = atoi(fgets(buf, 32, fp));
-	if (worker_cnt == 0)
-		log_fail("no workers available for task");
-	
-	pclose(fp);
-
-	return task_cnt < worker_cnt ? task_cnt : worker_cnt;
-}
-
 static struct work_info
 work_info_create(struct conf const *conf, struct build_info *info,
                  size_t task_cnt)
 {
-	int cnt = get_worker_cnt(task_cnt);
+	int cnt = get_nprocs();
 	
 	struct work_info winfo = {
 		.cnt = cnt,
@@ -157,54 +141,62 @@ build_info_destroy(struct build_info *info)
 	strlist_destroy(&info->objs);
 }
 
+static struct strlist
+find_included_hdrs(char const *file, struct conf const *conf)
+{
+	struct strlist incs = strlist_create();
+	
+	FILE *fp = fopen(file, "rb");
+	if (!fp)
+		log_fail("cannot open file %s for inclusion checks", file);
+
+	fseek(fp, 0, SEEK_END);
+	size_t fsize = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	char *fconts = malloc(fsize + 1);
+	fread(fconts, 1, fsize, fp);
+	fconts[fsize] = 0;
+
+	fclose(fp);
+	
+	regex_t inc_re;
+	if (regcomp(&inc_re, INCLUDE_REGEX, REG_EXTENDED | REG_NEWLINE))
+		log_fail("failed to compile include regex: " INCLUDE_REGEX);
+
+	regoff_t start = 0;
+	regmatch_t match;
+	while (!regexec(&inc_re, fconts + start, 1, &match, 0)) {
+		char *inc;
+
+		fconts[start + match.rm_eo - 1] = 0;
+		for (inc = fconts + start + match.rm_so; !strchr("<\"", *inc); ++inc);
+		++inc;
+
+		char *inc_path = malloc(strlen(conf->proj.inc_dir) + strlen(inc) + 2);
+		sprintf(inc_path, "%s/%s", conf->proj.inc_dir, inc);
+		strlist_add(&incs, inc_path);
+		free(inc_path);
+		
+		start = match.rm_eo;
+	}
+
+	free(fconts);
+	regfree(&inc_re);
+	
+	return incs;
+}
+
 static bool
 chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
                 struct conf const *conf, struct strlist *chkd_incs)
 {
-	char *path_san = sanitize_cmd(path);
-	struct strlist incs = strlist_create();
-
-	// find all includes in file, and add them to `incs`.
-	char *cmd = malloc(strlen(CMD_GREP_INCLUDE) + strlen(path_san) + 2);
-	sprintf(cmd, CMD_GREP_INCLUDE " %s", path_san);
-
-	FILE *fp = popen(cmd, "r");
-	if (!fp)
-		log_fail("failed to popen() " CMD_GREP_INCLUDE);
-	
-	free(cmd);
-	free(path_san);
-
-	char *inc = NULL;
-	size_t inc_len;
-	while (getline(&inc, &inc_len, fp) != -1) {
-		char *inc_file;
-		
-		// isolate filename of include directive, which can then be accessed
-		// via the `inc_file` variable.
-		for (inc_file = inc; !strchr("<\"", *inc_file); ++inc_file);
-		++inc_file;
-		
-		for (inc_len = 0; !strchr(">\"", inc_file[inc_len]); ++inc_len);
-		inc_file[inc_len] = 0;
-
-		// then, add found includes to `incs`.
-		char *inc_path = malloc(strlen(conf->proj.inc_dir) + inc_len + 2);
-		sprintf(inc_path, "%s/%s", conf->proj.inc_dir, inc_file);
-		strlist_add(&incs, inc_path);
-			
-		free(inc_path);
-	}
-	
-	pclose(fp);
-	free(inc);
+	struct strlist incs = find_included_hdrs(path, conf);
 
 	// remove non-project includes from `incs`, and also includes for headers
 	// which have already been checked, preventing excess resource usage and
 	// hanging with coupled inclusions.
 	for (size_t i = 0; i < incs.size; ++i) {
-		size_t idlen = strlen(incs.data[i]);
-		
 		if (!strlist_contains(&info->hdrs, incs.data[i])
 		    || strlist_contains(chkd_incs, incs.data[i])) {
 			strlist_rm(&incs, i);
@@ -302,7 +294,9 @@ static void
 comp_fmt_command(struct string *out_cmd, void *vp_data)
 {
 	struct comp_fmt_data const *data = vp_data;
-	string_push_str(out_cmd, data->conf->tc.cc);
+	char *cc = sanitize_path(data->conf->tc.cc);
+	string_push_str(out_cmd, cc);
+	free(cc);
 }
 
 static void
@@ -316,20 +310,26 @@ static void
 comp_fmt_source(struct string *out_cmd, void *vp_data)
 {
 	struct comp_fmt_data const *data = vp_data;
-	string_push_str(out_cmd, data->src);
+	char *src = sanitize_path(data->src);
+	string_push_str(out_cmd, src);
+	free(src);
 }
 
 static void
 comp_fmt_object(struct string *out_cmd, void *vp_data)
 {
 	struct comp_fmt_data const *data = vp_data;
-	string_push_str(out_cmd, data->obj);
+	char *obj = sanitize_path(data->obj);
+	string_push_str(out_cmd, obj);
+	free(obj);
 }
 
 static void
 comp_inc_fmt_include(struct string *out_cmd, void *vp_data)
 {
-	string_push_str(out_cmd, vp_data);
+	char *inc = sanitize_path(vp_data);
+	string_push_str(out_cmd, inc);
+	free(inc);
 }
 
 static void
@@ -378,25 +378,23 @@ compile_worker(void *vp_arg)
 			.obj = obj,
 		};
 		
-		char *cmd_unsan = fmt_str(&spec, conf->tc_info.cc_cmd_fmt, &data);
-		char *cmd_san = sanitize_cmd(cmd_unsan);
-		free(cmd_unsan);
-
-		cmd_mkdir_p(obj);
+		mkdir_recursive(obj);
 		rmdir(obj);
 
-		int rc = system(cmd_san);
-		free(cmd_san);
+		char *cmd = fmt_str(&spec, conf->tc_info.cc_cmd_fmt, &data);
+		int rc = system(cmd);
+		free(cmd);
 		
 		if (rc != conf->tc_info.cc_success_rc) {
 			*arg->out_rc = rc;
-			return NULL;
+			goto cleanup;
 		}
 	}
 
-	fmt_spec_destroy(&spec);
-
 	*arg->out_rc = conf->tc_info.cc_success_rc;
+
+cleanup:
+	fmt_spec_destroy(&spec);
 	return NULL;
 }
 
@@ -432,7 +430,9 @@ static void
 link_fmt_command(struct string *out_cmd, void *vp_data)
 {
 	struct link_fmt_data const *data = vp_data;
-	string_push_str(out_cmd, data->conf->tc.ld);
+	char *ld = sanitize_path(data->conf->tc.ld);
+	string_push_str(out_cmd, ld);
+	free(ld);
 }
 
 static void
@@ -445,7 +445,9 @@ link_fmt_ldflags(struct string *out_cmd, void *vp_data)
 static void
 link_obj_fmt_object(struct string *out_cmd, void *vp_data)
 {
-	string_push_str(out_cmd, vp_data);
+	char *obj = sanitize_path(vp_data);
+	string_push_str(out_cmd, obj);
+	free(obj);
 }
 
 static void
@@ -471,7 +473,9 @@ static void
 link_fmt_output(struct string *out_cmd, void *vp_data)
 {
 	struct link_fmt_data const *data = vp_data;
-	string_push_str(out_cmd, data->conf->proj.output);
+	char *output = sanitize_path(data->conf->proj.output);
+	string_push_str(out_cmd, output);
+	free(output);
 }
 
 static void
@@ -521,19 +525,16 @@ build_link(struct conf const *conf)
 		.objs = &all_objs,
 	};
 
-	char *cmd_unsan = fmt_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
-	char *cmd_san = sanitize_cmd(cmd_unsan);
-	free(cmd_unsan);
+	mkdir_recursive(conf->proj.output);
+	rmdir(conf->proj.output);
 
+	char *cmd = fmt_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
+	int rc = system(cmd);
+	free(cmd);
+	
 	fmt_spec_destroy(&spec);
 	strlist_destroy(&obj_exts);
 	strlist_destroy(&all_objs);
-
-	cmd_mkdir_p(conf->proj.output);
-	rmdir(conf->proj.output);
-
-	int rc = system(cmd_san);
-	free(cmd_san);
 	
 	if (rc != conf->tc_info.ld_success_rc)
 		log_fail("linking failed");

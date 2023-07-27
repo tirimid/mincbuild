@@ -7,8 +7,7 @@
 
 #include <sys/stat.h>
 
-#define ESCAPABLE " \t\n\v\f\r\\'\"<>;"
-#define SANITIZE_ESCAPE "'\"<>;"
+#define SANITIZE_ESCAPE " \t\n\v\f\r\\'\"<>;"
 #define FMT_SPEC_CH '%'
 
 void
@@ -233,20 +232,20 @@ fmt_str(struct fmt_spec const *f, char const *fmt, void *data)
 }
 
 void
-cmd_mkdir_p(char const *dir)
+mkdir_recursive(char const *dir)
 {
 	struct stat s;
 	if (!stat(dir, &s))
 		return;
-	
-	char *cmd = malloc(10 + strlen(dir));
-	sprintf(cmd, "mkdir -p %s", dir);
-	char *san_cmd = sanitize_cmd(cmd);
 
-	int rc = system(san_cmd);
+	char *dir_san = sanitize_path(dir);
+	char *cmd = malloc(10 + strlen(dir_san));
+	sprintf(cmd, "mkdir -p %s", dir_san);
+
+	int rc = system(cmd);
 	
-	free(san_cmd);
 	free(cmd);
+	free(dir_san);
 
 	// note that similar checks for `rmdir()` are not necessary, as `rmdir()` is
 	// only called directly after `cmd_mkdir_p()` in the code.
@@ -255,25 +254,19 @@ cmd_mkdir_p(char const *dir)
 }
 
 char *
-sanitize_cmd(char const *cmd)
+sanitize_path(char const *path)
 {
-	size_t cmd_len = strlen(cmd);
-	struct string san_cmd = string_create();
+	struct string san_path = string_create();
 
-	for (size_t i = 0; i < cmd_len; ++i) {
-		if (strchr(SANITIZE_ESCAPE, cmd[i])) {
-			string_push_ch(&san_cmd, '\\');
-			string_push_ch(&san_cmd, cmd[i]);
-		} else if (cmd[i] == '\\') {
-			char next = cmd[i + 1];
-			string_push_ch(&san_cmd, '\\');
-			string_push_ch(&san_cmd, strchr(ESCAPABLE, next) ? next : '\\');
-			i += strchr(ESCAPABLE, next) ? 1 : 0;
-		} else
-			string_push_ch(&san_cmd, cmd[i]);
+	for (char const *c = path; *c; ++c) {
+		if (strchr(SANITIZE_ESCAPE, *c))
+			string_push_ch(&san_path, '\\');
+		
+		string_push_ch(&san_path, *c);
 	}
 	
-	char *san_cmd_cs = string_to_str(&san_cmd);
-	string_destroy(&san_cmd);
-	return san_cmd_cs;
+	char *san_path_str = string_to_str(&san_path);
+	string_destroy(&san_path);
+	
+	return san_path_str;
 }
