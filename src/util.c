@@ -234,23 +234,19 @@ fmt_str(struct fmt_spec const *f, char const *fmt, void *data)
 void
 mkdir_recursive(char const *dir)
 {
-	struct stat s;
-	if (!stat(dir, &s))
-		return;
+	struct string path_build = string_create();
 
-	char *dir_san = sanitize_path(dir);
-	char *cmd = malloc(10 + strlen(dir_san));
-	sprintf(cmd, "mkdir -p %s", dir_san);
+	for (char const *c = dir; *c; ++c) {
+		if (*c == '/') {
+			char *pstr = string_to_str(&path_build);
+			mkdir(pstr, S_IRWXU | S_IRWXG | S_IRWXO);
+			free(pstr);
+		}
 
-	int rc = system(cmd);
-	
-	free(cmd);
-	free(dir_san);
+		string_push_ch(&path_build, *c);
+	}
 
-	// note that similar checks for `rmdir()` are not necessary, as `rmdir()` is
-	// only called directly after `cmd_mkdir_p()` in the code.
-	if (rc)
-		log_fail("failed to make file/directory at %s\n", dir);
+	string_destroy(&path_build);
 }
 
 char *

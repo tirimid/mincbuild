@@ -48,6 +48,7 @@ work_info_create(struct conf const *conf, struct build_info *info,
                  size_t task_cnt)
 {
 	int cnt = get_nprocs();
+	cnt = task_cnt < cnt ? task_cnt : cnt;
 	
 	struct work_info winfo = {
 		.cnt = cnt,
@@ -141,14 +142,16 @@ build_info_destroy(struct build_info *info)
 	strlist_destroy(&info->objs);
 }
 
-static struct strlist
-find_included_hdrs(char const *file, struct conf const *conf)
+static bool
+chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
+                struct conf const *conf, struct strlist *chkd_incs)
 {
+	// find included headers in the file.
 	struct strlist incs = strlist_create();
 	
-	FILE *fp = fopen(file, "rb");
+	FILE *fp = fopen(path, "rb");
 	if (!fp)
-		log_fail("cannot open file %s for inclusion checks", file);
+		log_fail("cannot open file %s for inclusion checks", path);
 
 	fseek(fp, 0, SEEK_END);
 	size_t fsize = ftell(fp);
@@ -183,15 +186,6 @@ find_included_hdrs(char const *file, struct conf const *conf)
 
 	free(fconts);
 	regfree(&inc_re);
-	
-	return incs;
-}
-
-static bool
-chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
-                struct conf const *conf, struct strlist *chkd_incs)
-{
-	struct strlist incs = find_included_hdrs(path, conf);
 
 	// remove non-project includes from `incs`, and also includes for headers
 	// which have already been checked, preventing excess resource usage and
