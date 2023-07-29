@@ -123,7 +123,7 @@ build_info_get(struct conf const *conf)
 	
 	for (size_t i = 0; i < info.srcs.size; ++i) {
 		char const *src = (char *)info.srcs.data[i] + src_dir_len;
-		src += *src == '/' ? 1 : 0;
+		src += *src == '/';
 
 		char *obj = malloc(lib_dir_len + strlen(src) + 4);
 		sprintf(obj, "%s/%s.o", conf->proj.lib_dir, src);
@@ -181,7 +181,7 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 		strlist_add(&incs, inc_path);
 		free(inc_path);
 		
-		start = match.rm_eo;
+		start += match.rm_eo;
 	}
 
 	free(fconts);
@@ -202,7 +202,7 @@ chk_inc_rebuild(struct build_info const *info, char const *path, time_t obj_mt,
 	struct stat s;
 	stat(path, &s);
 	bool rebuild = difftime(s.st_mtime, obj_mt) > 0.0;
-
+	
 	for (size_t i = 0; i < incs.size && !rebuild; ++i) {
 		strlist_add(chkd_incs, incs.data[i]);
 		rebuild = rebuild || chk_inc_rebuild(info, incs.data[i], obj_mt, conf,
