@@ -43,6 +43,161 @@ struct link_fmt_data {
 	struct strlist const *objs;
 };
 
+static struct work_info work_info_create(struct conf const *conf,
+                                         struct build_info *info,
+                                         size_t task_cnt);
+static void work_info_destroy(struct work_info *winfo);
+static struct strlist ext_files(char *dir, struct strlist const *exts);
+static bool chk_inc_rebuild(struct build_info const *info, char const *path,
+                            time_t obj_mt, struct conf const *conf,
+                            struct strlist *chkd_incs);
+static void *prune_worker(void *vp_arg);
+static void comp_fmt_command(struct string *out_cmd, void *vp_data);
+static void comp_fmt_cflags(struct string *out_cmd, void *vp_data);
+static void comp_fmt_source(struct string *out_cmd, void *vp_data);
+static void comp_fmt_object(struct string *out_cmd, void *vp_data);
+static void comp_inc_fmt_include(struct string *out_cmd, void *vp_data);
+static void comp_fmt_includes(struct string *out_cmd, void *vp_data);
+static void *compile_worker(void *vp_arg);
+static void link_fmt_command(struct string *out_cmd, void *vp_data);
+static void link_fmt_ldflags(struct string *out_cmd, void *vp_data);
+static void link_obj_fmt_object(struct string *out_cmd, void *vp_data);
+static void link_fmt_objects(struct string *out_cmd, void *vp_data);
+static void link_fmt_output(struct string *out_cmd, void *vp_data);
+static void link_lib_fmt_library(struct string *out_cmd, void *vp_data);
+static void link_fmt_libraries(struct string *out_cmd, void *vp_data);
+
+struct build_info
+build_info_get(struct conf const *conf)
+{
+	struct build_info info = {
+		.srcs = ext_files(conf->proj.src_dir, &conf->proj.src_exts),
+		.hdrs = ext_files(conf->proj.inc_dir, &conf->proj.hdr_exts),
+		.objs = strlist_create(),
+	};
+
+	size_t src_dir_len = strlen(conf->proj.src_dir);
+	size_t lib_dir_len = strlen(conf->proj.lib_dir);
+	
+	for (size_t i = 0; i < info.srcs.size; ++i) {
+		char const *src = (char *)info.srcs.data[i] + src_dir_len;
+		src += *src == '/';
+
+		char *obj = malloc(lib_dir_len + strlen(src) + 4);
+		sprintf(obj, "%s/%s.o", conf->proj.lib_dir, src);
+		strlist_add(&info.objs, obj);
+		free(obj);
+	}
+	
+	return info;
+}
+
+void
+build_info_destroy(struct build_info *info)
+{
+	strlist_destroy(&info->srcs);
+	strlist_destroy(&info->hdrs);
+	strlist_destroy(&info->objs);
+}
+
+void
+build_prune(struct conf const *conf, struct build_info *info)
+{
+	struct work_info winfo = work_info_create(conf, info, info->srcs.size);
+	log_info("pruning compilation with %d worker(s)", winfo.cnt);
+
+	for (size_t i = 0; i < info->srcs.size; ++i)
+		++winfo.args[i % winfo.cnt].cnt;
+
+	// create threads to mark which sources should be pruned.
+	for (int i = 0; i < winfo.cnt; ++i) {
+		struct thread_arg *args = winfo.args, *prev = &args[i == 0 ? i : i - 1];
+		args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
+		
+		if (pthread_create(&winfo.workers[i], NULL, prune_worker, &args[i]))
+			log_fail("failed on pthread_create()");
+	}
+
+	for (int i = 0; i < winfo.cnt; ++i)
+		pthread_join(winfo.workers[i], NULL);
+
+	work_info_destroy(&winfo);
+
+	// remove sources/objects marked for pruning from strlists.
+	for (size_t i = 0; i < info->srcs.size; ++i) {
+		if (!info->srcs.data[i]) {
+			strlist_rm_no_free(&info->srcs, i);
+			strlist_rm_no_free(&info->objs, i);
+			--i;
+		}
+	}
+}
+
+void
+build_compile(struct conf const *conf, struct build_info *info)
+{
+	struct work_info winfo = work_info_create(conf, info, info->srcs.size);
+	log_info("compiling project with %d worker(s)", winfo.cnt);
+
+	for (size_t i = 0; i < info->objs.size; ++i)
+		++winfo.args[i % winfo.cnt].cnt;
+
+	for (int i = 0; i < winfo.cnt; ++i) {
+		struct thread_arg *args = winfo.args, *prev = &args[i == 0 ? i : i - 1];
+		args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
+		
+		if (pthread_create(&winfo.workers[i], NULL, compile_worker, &args[i]))
+			log_fail("failed on pthread_create()");
+	}
+
+	for (int i = 0; i < winfo.cnt; ++i)
+		pthread_join(winfo.workers[i], NULL);
+
+	for (int i = 0; i < winfo.cnt; ++i) {
+		if (winfo.rcs[i] != conf->tc_info.cc_success_rc)
+			log_fail("compilation failed on some module(s)");
+	}
+
+	work_info_destroy(&winfo);
+}
+
+void
+build_link(struct conf const *conf)
+{
+	log_info("linking project");
+
+	// get all project object files, including those omitted during compilation.
+	struct strlist obj_exts = strlist_create();
+	strlist_add(&obj_exts, "o");
+	struct strlist all_objs = ext_files(conf->proj.lib_dir, &obj_exts);
+
+	struct fmt_spec spec = fmt_spec_create();
+	fmt_spec_add_ent(&spec, 'c', link_fmt_command);
+	fmt_spec_add_ent(&spec, 'f', link_fmt_ldflags);
+	fmt_spec_add_ent(&spec, 'o', link_fmt_objects);
+	fmt_spec_add_ent(&spec, 'b', link_fmt_output);
+	fmt_spec_add_ent(&spec, 'l', link_fmt_libraries);
+
+	struct link_fmt_data data = {
+		.conf = conf,
+		.objs = &all_objs,
+	};
+
+	mkdir_recursive(conf->proj.output);
+	rmdir(conf->proj.output);
+
+	char *cmd = fmt_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
+	int rc = system(cmd);
+	free(cmd);
+	
+	fmt_spec_destroy(&spec);
+	strlist_destroy(&obj_exts);
+	strlist_destroy(&all_objs);
+	
+	if (rc != conf->tc_info.ld_success_rc)
+		log_fail("linking failed");
+}
+
 static struct work_info
 work_info_create(struct conf const *conf, struct build_info *info,
                  size_t task_cnt)
@@ -107,39 +262,6 @@ ext_files(char *dir, struct strlist const *exts)
 
 	fts_close(fts_p);
 	return files;
-}
-
-struct build_info
-build_info_get(struct conf const *conf)
-{
-	struct build_info info = {
-		.srcs = ext_files(conf->proj.src_dir, &conf->proj.src_exts),
-		.hdrs = ext_files(conf->proj.inc_dir, &conf->proj.hdr_exts),
-		.objs = strlist_create(),
-	};
-
-	size_t src_dir_len = strlen(conf->proj.src_dir);
-	size_t lib_dir_len = strlen(conf->proj.lib_dir);
-	
-	for (size_t i = 0; i < info.srcs.size; ++i) {
-		char const *src = (char *)info.srcs.data[i] + src_dir_len;
-		src += *src == '/';
-
-		char *obj = malloc(lib_dir_len + strlen(src) + 4);
-		sprintf(obj, "%s/%s.o", conf->proj.lib_dir, src);
-		strlist_add(&info.objs, obj);
-		free(obj);
-	}
-	
-	return info;
-}
-
-void
-build_info_destroy(struct build_info *info)
-{
-	strlist_destroy(&info->srcs);
-	strlist_destroy(&info->hdrs);
-	strlist_destroy(&info->objs);
 }
 
 static bool
@@ -251,39 +373,6 @@ prune_worker(void *vp_arg)
 	return NULL;
 }
 
-void
-build_prune(struct conf const *conf, struct build_info *info)
-{
-	struct work_info winfo = work_info_create(conf, info, info->srcs.size);
-	log_info("pruning compilation with %d worker(s)", winfo.cnt);
-
-	for (size_t i = 0; i < info->srcs.size; ++i)
-		++winfo.args[i % winfo.cnt].cnt;
-
-	// create threads to mark which sources should be pruned.
-	for (int i = 0; i < winfo.cnt; ++i) {
-		struct thread_arg *args = winfo.args, *prev = &args[i == 0 ? i : i - 1];
-		args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
-		
-		if (pthread_create(&winfo.workers[i], NULL, prune_worker, &args[i]))
-			log_fail("failed on pthread_create()");
-	}
-
-	for (int i = 0; i < winfo.cnt; ++i)
-		pthread_join(winfo.workers[i], NULL);
-
-	work_info_destroy(&winfo);
-
-	// remove sources/objects marked for pruning from strlists.
-	for (size_t i = 0; i < info->srcs.size; ++i) {
-		if (!info->srcs.data[i]) {
-			strlist_rm_no_free(&info->srcs, i);
-			strlist_rm_no_free(&info->objs, i);
-			--i;
-		}
-	}
-}
-
 static void
 comp_fmt_command(struct string *out_cmd, void *vp_data)
 {
@@ -392,34 +481,6 @@ cleanup:
 	return NULL;
 }
 
-void
-build_compile(struct conf const *conf, struct build_info *info)
-{
-	struct work_info winfo = work_info_create(conf, info, info->srcs.size);
-	log_info("compiling project with %d worker(s)", winfo.cnt);
-
-	for (size_t i = 0; i < info->objs.size; ++i)
-		++winfo.args[i % winfo.cnt].cnt;
-
-	for (int i = 0; i < winfo.cnt; ++i) {
-		struct thread_arg *args = winfo.args, *prev = &args[i == 0 ? i : i - 1];
-		args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
-		
-		if (pthread_create(&winfo.workers[i], NULL, compile_worker, &args[i]))
-			log_fail("failed on pthread_create()");
-	}
-
-	for (int i = 0; i < winfo.cnt; ++i)
-		pthread_join(winfo.workers[i], NULL);
-
-	for (int i = 0; i < winfo.cnt; ++i) {
-		if (winfo.rcs[i] != conf->tc_info.cc_success_rc)
-			log_fail("compilation failed on some module(s)");
-	}
-
-	work_info_destroy(&winfo);
-}
-
 static void
 link_fmt_command(struct string *out_cmd, void *vp_data)
 {
@@ -495,41 +556,4 @@ link_fmt_libraries(struct string *out_cmd, void *vp_data)
 	}
 
 	fmt_spec_destroy(&spec);
-}
-
-void
-build_link(struct conf const *conf)
-{
-	log_info("linking project");
-
-	// get all project object files, including those omitted during compilation.
-	struct strlist obj_exts = strlist_create();
-	strlist_add(&obj_exts, "o");
-	struct strlist all_objs = ext_files(conf->proj.lib_dir, &obj_exts);
-
-	struct fmt_spec spec = fmt_spec_create();
-	fmt_spec_add_ent(&spec, 'c', link_fmt_command);
-	fmt_spec_add_ent(&spec, 'f', link_fmt_ldflags);
-	fmt_spec_add_ent(&spec, 'o', link_fmt_objects);
-	fmt_spec_add_ent(&spec, 'b', link_fmt_output);
-	fmt_spec_add_ent(&spec, 'l', link_fmt_libraries);
-
-	struct link_fmt_data data = {
-		.conf = conf,
-		.objs = &all_objs,
-	};
-
-	mkdir_recursive(conf->proj.output);
-	rmdir(conf->proj.output);
-
-	char *cmd = fmt_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
-	int rc = system(cmd);
-	free(cmd);
-	
-	fmt_spec_destroy(&spec);
-	strlist_destroy(&obj_exts);
-	strlist_destroy(&all_objs);
-	
-	if (rc != conf->tc_info.ld_success_rc)
-		log_fail("linking failed");
 }

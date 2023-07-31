@@ -11,80 +11,17 @@
 
 #include "util.h"
 
-static json_object *
-json_get(json_object const *json, char const *sct, char const *key,
-         char const *file)
-{
-	json_object *sct_obj;
-	if (!json_object_object_get_ex(json, sct, &sct_obj))
-		log_fail("%s must have section '%s'", file, sct);
-
-	json_object *key_obj;
-	if (!json_object_object_get_ex(sct_obj, key, &key_obj))
-		log_fail("%s must have key '%s' in section '%s'", file, key, sct);
-	
-	return key_obj;
-}
-
-static char *
-json_get_str(json_object const *json, char const *sct, char const *key,
-             char const *file)
-{
-	json_object *key_obj = json_get(json, sct, key, file);
-	if (!json_object_is_type(key_obj, json_type_string))
-		log_fail("in %s, '%s.%s' must be a string", file, sct, key);
-
-	size_t str_len = json_object_get_string_len(key_obj);
-	char *str = malloc(str_len + 1);
-	strcpy(str, json_object_get_string(key_obj));
-
-	return str;
-}
-
-static struct strlist
-json_get_str_list(json_object const *json, char const *sct, char const *key,
-                  char const *file)
-{
-	json_object *key_obj = json_get(json, sct, key, file);
-	if (!json_object_is_type(key_obj, json_type_array))
-		log_fail("in %s, '%s.%s' must be a string array", file, sct, key);
-
-	struct strlist sl = strlist_create();
-
-	for (size_t i = 0; i < json_object_array_length(key_obj); ++i) {
-		json_object *arr_obj = json_object_array_get_idx(key_obj, i);
-		if (!json_object_is_type(arr_obj, json_type_string))
-			log_fail("in %s, '%s.%s' must only have strings", file, sct, key);
-
-		size_t str_len = json_object_get_string_len(arr_obj);
-		char const *str = json_object_get_string(arr_obj);
-		strlist_add(&sl, str);
-	}
-	
-	return sl;
-}
-
-static bool
-json_get_bool(json_object const *json, char const *sct, char const *key,
-              char const *file)
-{
-	json_object *key_obj = json_get(json, sct, key, file);
-	if (!json_object_is_type(key_obj, json_type_boolean))
-		log_fail("in %s, '%s.%s' must be a bool", file, sct, key);
-
-	return json_object_get_boolean(key_obj);
-}
-
-static int
-json_get_int(json_object const *json, char const *sct, char const *key,
-             char const *file)
-{
-	json_object *key_obj = json_get(json, sct, key, file);
-	if (!json_object_is_type(key_obj, json_type_int))
-		log_fail("in %s, '%s.%s' must be an int", file, sct, key);
-
-	return json_object_get_int(key_obj);
-}
+static json_object *json_get(json_object const *json, char const *sct,
+                             char const *key, char const *file);
+static char *json_get_str(json_object const *json, char const *sct,
+                          char const *key, char const *file);
+static struct strlist json_get_str_list(json_object const *json,
+                                        char const *sct, char const *key,
+                                        char const *file);
+static bool json_get_bool(json_object const *json, char const *sct,
+                          char const *key, char const *file);
+static int json_get_int(json_object const *json, char const *sct,
+                        char const *key, char const *file);
 
 struct conf
 conf_from_file(char const *file)
@@ -192,4 +129,79 @@ conf_destroy(struct conf *conf)
 		strlist_destroy(&conf->deps.incs);
 		strlist_destroy(&conf->deps.libs);
 	}
+}
+
+static json_object *
+json_get(json_object const *json, char const *sct, char const *key,
+         char const *file)
+{
+	json_object *sct_obj;
+	if (!json_object_object_get_ex(json, sct, &sct_obj))
+		log_fail("%s must have section '%s'", file, sct);
+
+	json_object *key_obj;
+	if (!json_object_object_get_ex(sct_obj, key, &key_obj))
+		log_fail("%s must have key '%s' in section '%s'", file, key, sct);
+	
+	return key_obj;
+}
+
+static char *
+json_get_str(json_object const *json, char const *sct, char const *key,
+             char const *file)
+{
+	json_object *key_obj = json_get(json, sct, key, file);
+	if (!json_object_is_type(key_obj, json_type_string))
+		log_fail("in %s, '%s.%s' must be a string", file, sct, key);
+
+	size_t str_len = json_object_get_string_len(key_obj);
+	char *str = malloc(str_len + 1);
+	strcpy(str, json_object_get_string(key_obj));
+
+	return str;
+}
+
+static struct strlist
+json_get_str_list(json_object const *json, char const *sct, char const *key,
+                  char const *file)
+{
+	json_object *key_obj = json_get(json, sct, key, file);
+	if (!json_object_is_type(key_obj, json_type_array))
+		log_fail("in %s, '%s.%s' must be a string array", file, sct, key);
+
+	struct strlist sl = strlist_create();
+
+	for (size_t i = 0; i < json_object_array_length(key_obj); ++i) {
+		json_object *arr_obj = json_object_array_get_idx(key_obj, i);
+		if (!json_object_is_type(arr_obj, json_type_string))
+			log_fail("in %s, '%s.%s' must only have strings", file, sct, key);
+
+		size_t str_len = json_object_get_string_len(arr_obj);
+		char const *str = json_object_get_string(arr_obj);
+		strlist_add(&sl, str);
+	}
+	
+	return sl;
+}
+
+static bool
+json_get_bool(json_object const *json, char const *sct, char const *key,
+              char const *file)
+{
+	json_object *key_obj = json_get(json, sct, key, file);
+	if (!json_object_is_type(key_obj, json_type_boolean))
+		log_fail("in %s, '%s.%s' must be a bool", file, sct, key);
+
+	return json_object_get_boolean(key_obj);
+}
+
+static int
+json_get_int(json_object const *json, char const *sct, char const *key,
+             char const *file)
+{
+	json_object *key_obj = json_get(json, sct, key, file);
+	if (!json_object_is_type(key_obj, json_type_int))
+		log_fail("in %s, '%s.%s' must be an int", file, sct, key);
+
+	return json_object_get_int(key_obj);
 }
