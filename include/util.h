@@ -24,10 +24,6 @@ struct fmt_spec {
 	size_t size, cap;
 };
 
-void log_info(char const *fmt, ...);
-void log_warn(char const *fmt, ...);
-void log_fail(char const *fmt, ...);
-
 struct string string_create(void);
 void string_destroy(struct string *s);
 void string_push_ch(struct string *s, char ch);
@@ -53,5 +49,6 @@ char *fmt_str(struct fmt_spec const *f, char const *fmt, void *data);
 
 void mkdir_recursive(char const *dir);
 char *sanitize_path(char const *path);
+struct strlist extfind(char *dir, struct strlist const *exts);
 
 #endif

@@ -5,50 +5,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <fts.h>
 #include <sys/stat.h>
 
 #define SANITIZE_ESCAPE " \t\n\v\f\r\\'\"<>;"
 #define FMT_SPEC_CH '%'
-
-void
-log_info(char const *fmt, ...)
-{
-	printf("%s", "\033[1;36minfo\033[0m: ");
-	
-	va_list args;
-	va_start(args, fmt);
-	vprintf(fmt, args);
-	va_end(args);
-
-	putc('\n', stdout);
-}
-
-void
-log_warn(char const *fmt, ...)
-{
-	printf("%s", "\033[1;33mwarn\033[0m: ");
-	
-	va_list args;
-	va_start(args, fmt);
-	vprintf(fmt, args);
-	va_end(args);
-
-	putc('\n', stdout);
-}
-
-void
-log_fail(char const *fmt, ...)
-{
-	printf("%s", "\033[1;31mfail\033[0m: ");
-	
-	va_list args;
-	va_start(args, fmt);
-	vprintf(fmt, args);
-	va_end(args);
-
-	putc('\n', stdout);
-	exit(1);
-}
 
 struct string
 string_create(void)
@@ -265,4 +226,37 @@ sanitize_path(char const *path)
 	string_destroy(&san_path);
 	
 	return san_path_str;
+}
+
+struct strlist
+extfind(char *dir, struct strlist const *exts)
+{
+	unsigned long fts_opts = FTS_LOGICAL | FTS_COMFOLLOW | FTS_NOCHDIR;
+	char *const fts_dirs[] = {dir, NULL};
+	FTS *fts_p = fts_open(fts_dirs, fts_opts, NULL);
+
+	if (!fts_p) {
+		fputs("failed to fts_open()!\n", stderr);
+		exit(1);
+	}
+
+	struct strlist files = strlist_create();
+
+	if (!fts_children(fts_p, 0))
+		return files;
+
+	FTSENT *fts_ent;
+	while (fts_ent = fts_read(fts_p)) {
+		if (fts_ent->fts_info != FTS_F)
+			continue;
+
+		char const *ext = strrchr(fts_ent->fts_path, '.');
+		ext = ext && ext != fts_ent->fts_path ? ext + 1 : "\0";
+
+		if (strlist_contains(exts, ext))
+			strlist_add(&files, fts_ent->fts_path);
+	}
+
+	fts_close(fts_p);
+	return files;
 }
