@@ -134,8 +134,7 @@ fmt_spec_destroy(struct fmt_spec *f)
 }
 
 void
-fmt_spec_add_ent(struct fmt_spec *f, char ch,
-                 void (*fn)(struct string *, void *))
+fmt_spec_add_ent(struct fmt_spec *f, char ch, void (*fn)(struct string *, void *))
 {
 	if (f->size >= f->cap) {
 		f->cap *= 2;
@@ -157,8 +156,7 @@ fmt_string(struct fmt_spec const *f, char const *fmt, void *data)
 }
 
 void
-fmt_inplace(struct string *out_str, struct fmt_spec const *f, char const *fmt,
-            void *data)
+fmt_inplace(struct string *out_str, struct fmt_spec const *f, char const *fmt, void *data)
 {
 	for (size_t i = 0, fmt_len = strlen(fmt), j; i < fmt_len; ++i) {
 		if (fmt[i] != FMT_SPEC_CH) {
