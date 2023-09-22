@@ -4,7 +4,6 @@
 #include "conf.h"
 #include "util.h"
 
-void compile(struct conf const *conf, struct strlist const *srcs,
-             struct strlist const *objs);
+void compile(struct conf const *conf, struct strlist const *srcs, struct strlist const *objs);
 
 #endif

@@ -22,15 +22,18 @@ struct tharg {
 	regex_t const *re;
 };
 
+struct rebuildck_info {
+	struct strlist const *hdrs;
+	struct conf const *conf;
+	regex_t const *re;
+	time_t mt;
+};
+
 static void *worker(void *vp_arg);
-static bool ckrebuild(struct strlist *srcs, struct strlist *objs,
-                      struct strlist const *hdrs, char const *path,
-                      time_t mt, struct conf const *conf,
-                      struct strlist *ckdincs, regex_t const *re);
+static bool ckrebuild(char const *path, struct strlist *ckdincs, struct rebuildck_info const *info);
 
 void
-prune(struct conf const *conf, struct strlist *srcs, struct strlist *objs,
-      struct strlist const *hdrs)
+prune(struct conf const *conf, struct strlist *srcs, struct strlist *objs, struct strlist const *hdrs)
 {
 	regex_t re;
 	if (regcomp(&re, INCLUDE_REGEX, REG_EXTENDED | REG_NEWLINE)) {
@@ -93,30 +96,34 @@ static void *
 worker(void *vp_arg)
 {
 	struct tharg *arg = vp_arg;
-	struct conf const *conf = arg->conf;
-	struct strlist *srcs = arg->srcs, *objs = arg->objs;
-	struct strlist const *hdrs = arg->hdrs;
-	regex_t const *re = arg->re;
 
 	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
 		struct stat s_src;
-		stat(srcs->data[i], &s_src);
+		stat(arg->srcs->data[i], &s_src);
 
 		struct stat s_obj;
-		if (stat(objs->data[i], &s_obj))
+		if (stat(arg->objs->data[i], &s_obj))
 			continue;
 
 		time_t mt = s_obj.st_mtime;
 		struct strlist ckdincs = strlist_create();
-		if (ckrebuild(srcs, objs, hdrs, srcs->data[i], mt, conf, &ckdincs, re))
+		
+		struct rebuildck_info info = {
+			.hdrs = arg->hdrs,
+			.conf = arg->conf,
+			.re = arg->re,
+			.mt = mt,
+		};
+		
+		if (ckrebuild(arg->srcs->data[i], &ckdincs, &info))
 			goto cleanup;
 
-		printf("\t%s\n", srcs->data[i]);
+		printf("\t%s\n", arg->srcs->data[i]);
 
 		// mark source/object for removal in pruning.
-		free(srcs->data[i]);
-		free(objs->data[i]);
-		srcs->data[i] = objs->data[i] = NULL;
+		free(arg->srcs->data[i]);
+		free(arg->objs->data[i]);
+		arg->srcs->data[i] = arg->objs->data[i] = NULL;
 
 	cleanup:
 		strlist_destroy(&ckdincs);
@@ -126,14 +133,12 @@ worker(void *vp_arg)
 }
 
 static bool
-ckrebuild(struct strlist *srcs, struct strlist *objs,
-          struct strlist const *hdrs, char const *path, time_t mt,
-          struct conf const *conf, struct strlist *ckdincs, regex_t const *re)
+ckrebuild(char const *path, struct strlist *ckdincs, struct rebuildck_info const *info)
 {
 	// check whether anything even needs to be done.
 	struct stat s;
 	stat(path, &s);
-	bool rebuild = difftime(s.st_mtime, mt) > 0.0;
+	bool rebuild = difftime(s.st_mtime, info->mt) > 0.0;
 	if (rebuild)
 		return true;
 	
@@ -158,15 +163,15 @@ ckrebuild(struct strlist *srcs, struct strlist *objs,
 
 	regoff_t start = 0;
 	regmatch_t match;
-	while (!regexec(re, fconts + start, 1, &match, 0)) {
+	while (!regexec(info->re, fconts + start, 1, &match, 0)) {
 		char *inc;
 
 		fconts[start + match.rm_eo - 1] = 0;
 		for (inc = fconts + start + match.rm_so; !strchr("<\"", *inc); ++inc);
 		++inc;
 
-		char *inc_path = malloc(strlen(conf->proj.inc_dir) + strlen(inc) + 2);
-		sprintf(inc_path, "%s/%s", conf->proj.inc_dir, inc);
+		char *inc_path = malloc(strlen(info->conf->proj.inc_dir) + strlen(inc) + 2);
+		sprintf(inc_path, "%s/%s", info->conf->proj.inc_dir, inc);
 		strlist_add(&incs, inc_path);
 		free(inc_path);
 		
@@ -175,11 +180,11 @@ ckrebuild(struct strlist *srcs, struct strlist *objs,
 
 	free(fconts);
 
-	// remove non-project includes from `incs`, and also includes for headers
-	// which have already been checked, preventing excess resource usage and
-	// hanging with coupled inclusions.
+	// remove non-project includes from `incs`, and also includes for
+	// headers which have already been checked, preventing excess resource
+	// usage and hanging with coupled inclusions.
 	for (size_t i = 0; i < incs.size; ++i) {
-		if (!strlist_contains(hdrs, incs.data[i])
+		if (!strlist_contains(info->hdrs, incs.data[i])
 		    || strlist_contains(ckdincs, incs.data[i])) {
 			strlist_rm(&incs, i);
 			--i;
@@ -188,7 +193,7 @@ ckrebuild(struct strlist *srcs, struct strlist *objs,
 	
 	for (size_t i = 0; i < incs.size && !rebuild; ++i) {
 		strlist_add(ckdincs, incs.data[i]);
-		if (ckrebuild(srcs, objs, hdrs, incs.data[i], mt, conf, ckdincs, re)) {
+		if (ckrebuild(incs.data[i], ckdincs, info)) {
 			strlist_destroy(&incs);
 			return true;
 		}

@@ -9,16 +9,11 @@
 #include <json-c/json.h>
 #include <sys/stat.h>
 
-static json_object *get_obj(json_object const *json, char const *s,
-                            char const *k, char const *file);
-static char *get_str(json_object const *json, char const *s, char const *k,
-                     char const *file);
-static struct strlist get_strlist(json_object const *json, char const *s,
-                                  char const *k, char const *file);
-static bool get_bool(json_object const *json, char const *s, char const *k,
-                     char const *file);
-static int get_int(json_object const *json, char const *s, char const *k,
-                   char const *file);
+static json_object *get_obj(json_object const *json, char const *s, char const *k, char const *file);
+static char *get_str(json_object const *json, char const *s, char const *k, char const *file);
+static struct strlist get_strlist(json_object const *json, char const *s, char const *k, char const *file);
+static bool get_bool(json_object const *json, char const *s, char const *k, char const *file);
+static int get_int(json_object const *json, char const *s, char const *k, char const *file);
 
 struct conf
 conf_from_file(char const *file)
@@ -61,8 +56,8 @@ conf_from_file(char const *file)
 	conf.proj.hdr_exts = get_strlist(json, "proj", "hdr-exts", file);
 	conf.deps.incs = get_strlist(json, "deps", "incs", file);
 
-	// then, if output should be produced, get necessary information for linker
-	// to be run after compilation.
+	// then, if output should be produced, get necessary information for
+	// linker to be run after compilation.
 	if (conf.proj.produce_output) {
 		conf.tc.ld = get_str(json, "tc", "ld", file);
 		conf.tc.ldflags = get_str(json, "tc", "ldflags", file);
@@ -92,14 +87,12 @@ conf_validate(struct conf const *conf)
 	}
 
 	if (stat(conf->proj.inc_dir, &s)) {
-		fprintf(stderr, "no include directory, creating: '%s'\n",
-		        conf->proj.inc_dir);
+		fprintf(stderr, "no include directory, creating: '%s'\n", conf->proj.inc_dir);
 		mkdir_recursive(conf->proj.inc_dir);
 	}
 
 	if (stat(conf->proj.lib_dir, &s)) {
-		fprintf(stderr, "no build directory, creating: '%s'\n",
-		        conf->proj.lib_dir);
+		fprintf(stderr, "no build directory, creating: '%s'\n", conf->proj.lib_dir);
 		mkdir_recursive(conf->proj.lib_dir);
 	}
 
@@ -173,8 +166,7 @@ get_str(json_object const *json, char const *s, char const *k, char const *file)
 }
 
 static struct strlist
-get_strlist(json_object const *json, char const *s, char const *k,
-            char const *file)
+get_strlist(json_object const *json, char const *s, char const *k, char const *file)
 {
 	json_object *arr_obj = get_obj(json, s, k, file);
 	if (!json_object_is_type(arr_obj, json_type_array)) {
@@ -198,8 +190,7 @@ get_strlist(json_object const *json, char const *s, char const *k,
 }
 
 static bool
-get_bool(json_object const *json, char const *s, char const *k,
-         char const *file)
+get_bool(json_object const *json, char const *s, char const *k, char const *file)
 {
 	json_object *obj = get_obj(json, s, k, file);
 	if (!json_object_is_type(obj, json_type_boolean)) {

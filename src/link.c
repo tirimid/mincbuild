@@ -26,7 +26,8 @@ linkobjs(struct conf const *conf)
 {
 	puts("linking project");
 
-	// get all project object files, including those omitted during compilation.
+	// get all project object files, including those omitted during
+	// compilation.
 	struct strlist obj_exts = strlist_create();
 	strlist_add(&obj_exts, "o");
 	struct strlist objs = extfind(conf->proj.lib_dir, &obj_exts);
@@ -88,15 +89,13 @@ static void
 fmt_objects(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	struct conf const *conf = data->conf;
-	struct strlist const *objs = data->objs;
 
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'o', obj_fmt_object);
 	
-	for (size_t i = 0; i < objs->size; ++i) {
-		fmt_inplace(out_cmd, &spec, conf->tc_info.ld_obj_fmt, objs->data[i]);
-		if (i < objs->size - 1)
+	for (size_t i = 0; i < data->objs->size; ++i) {
+		fmt_inplace(out_cmd, &spec, data->conf->tc_info.ld_obj_fmt, data->objs->data[i]);
+		if (i < data->objs->size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
 
@@ -122,15 +121,13 @@ static void
 fmt_libraries(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	struct conf const *conf = data->conf;
-	struct strlist const *libs = &conf->deps.libs;
 
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'l', lib_fmt_library);
 	
-	for (size_t i = 0; i < libs->size; ++i) {
-		fmt_inplace(out_cmd, &spec, conf->tc_info.ld_lib_fmt, libs->data[i]);
-		if (i < libs->size - 1)
+	for (size_t i = 0; i < data->conf->deps.libs.size; ++i) {
+		fmt_inplace(out_cmd, &spec, data->conf->tc_info.ld_lib_fmt, data->conf->deps.libs.data[i]);
+		if (i < data->conf->deps.libs.size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
 

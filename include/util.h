@@ -40,11 +40,9 @@ bool strlist_contains(struct strlist const *s, char const *str);
 
 struct fmt_spec fmt_spec_create(void);
 void fmt_spec_destroy(struct fmt_spec *f);
-void fmt_spec_add_ent(struct fmt_spec *f, char ch,
-                      void (*fn)(struct string *, void *));
+void fmt_spec_add_ent(struct fmt_spec *f, char ch, void (*fn)(struct string *, void *));
 struct string fmt_string(struct fmt_spec const *f, char const *fmt, void *data);
-void fmt_inplace(struct string *out_str, struct fmt_spec const *f,
-                 char const *fmt, void *data);
+void fmt_inplace(struct string *out_str, struct fmt_spec const *f, char const *fmt, void *data);
 char *fmt_str(struct fmt_spec const *f, char const *fmt, void *data);
 
 void mkdir_recursive(char const *dir);

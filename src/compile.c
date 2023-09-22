@@ -30,8 +30,7 @@ static void inc_fmt_include(struct string *out_cmd, void *vp_data);
 static void fmt_includes(struct string *out_cmd, void *vp_data);
 
 void
-compile(struct conf const *conf, struct strlist const *srcs,
-        struct strlist const *objs)
+compile(struct conf const *conf, struct strlist const *srcs, struct strlist const *objs)
 {
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'c', fmt_command);
@@ -159,16 +158,15 @@ static void
 fmt_includes(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	struct conf const *conf = data->conf;
 	
-	struct strlist incs = strlist_copy(&conf->deps.incs);
-	strlist_add(&incs, conf->proj.inc_dir);
+	struct strlist incs = strlist_copy(&data->conf->deps.incs);
+	strlist_add(&incs, data->conf->proj.inc_dir);
 
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'i', inc_fmt_include);
 	
 	for (size_t i = 0; i < incs.size; ++i) {
-		fmt_inplace(out_cmd, &spec, conf->tc_info.cc_inc_fmt, incs.data[i]);
+		fmt_inplace(out_cmd, &spec, data->conf->tc_info.cc_inc_fmt, incs.data[i]);
 		if (i < incs.size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
