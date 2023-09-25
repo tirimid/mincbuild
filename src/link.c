@@ -30,7 +30,7 @@ linkobjs(struct conf const *conf)
 	// compilation.
 	struct strlist obj_exts = strlist_create();
 	strlist_add(&obj_exts, "o");
-	struct strlist objs = extfind(conf->proj.lib_dir, &obj_exts);
+	struct strlist objs = extfind(conf->lib_dir, &obj_exts);
 	strlist_destroy(&obj_exts);
 
 	struct fmt_spec spec = fmt_spec_create();
@@ -45,17 +45,17 @@ linkobjs(struct conf const *conf)
 		.objs = &objs,
 	};
 
-	mkdir_recursive(conf->proj.output);
-	rmdir(conf->proj.output);
+	mkdir_recursive(conf->output);
+	rmdir(conf->output);
 
-	char *cmd = fmt_str(&spec, conf->tc_info.ld_cmd_fmt, &data);
+	char *cmd = fmt_str(&spec, conf->ld_cmd_fmt, &data);
 	fmt_spec_destroy(&spec);
 	strlist_destroy(&objs);
 	
 	int rc = system(cmd);
 	free(cmd);
 	
-	if (rc != conf->tc_info.ld_success_rc) {
+	if (rc != conf->ld_success_rc) {
 		fputs("linking failed!\n", stderr);
 		exit(1);
 	}
@@ -65,7 +65,7 @@ static void
 fmt_command(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	char *ld = sanitize_path(data->conf->tc.ld);
+	char *ld = sanitize_path(data->conf->ld);
 	string_push_str(out_cmd, ld);
 	free(ld);
 }
@@ -74,7 +74,7 @@ static void
 fmt_ldflags(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	string_push_str(out_cmd, data->conf->tc.ldflags);
+	string_push_str(out_cmd, data->conf->ldflags);
 }
 
 static void
@@ -94,7 +94,7 @@ fmt_objects(struct string *out_cmd, void *vp_data)
 	fmt_spec_add_ent(&spec, 'o', obj_fmt_object);
 	
 	for (size_t i = 0; i < data->objs->size; ++i) {
-		fmt_inplace(out_cmd, &spec, data->conf->tc_info.ld_obj_fmt, data->objs->data[i]);
+		fmt_inplace(out_cmd, &spec, data->conf->ld_obj_fmt, data->objs->data[i]);
 		if (i < data->objs->size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
@@ -106,7 +106,7 @@ static void
 fmt_output(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	char *output = sanitize_path(data->conf->proj.output);
+	char *output = sanitize_path(data->conf->output);
 	string_push_str(out_cmd, output);
 	free(output);
 }
@@ -125,9 +125,9 @@ fmt_libraries(struct string *out_cmd, void *vp_data)
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'l', lib_fmt_library);
 	
-	for (size_t i = 0; i < data->conf->deps.libs.size; ++i) {
-		fmt_inplace(out_cmd, &spec, data->conf->tc_info.ld_lib_fmt, data->conf->deps.libs.data[i]);
-		if (i < data->conf->deps.libs.size - 1)
+	for (size_t i = 0; i < data->conf->libs.size; ++i) {
+		fmt_inplace(out_cmd, &spec, data->conf->ld_lib_fmt, data->conf->libs.data[i]);
+		if (i < data->conf->libs.size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
 

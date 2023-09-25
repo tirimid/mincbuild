@@ -170,8 +170,8 @@ ckrebuild(char const *path, struct strlist *ckdincs, struct rebuildck_info const
 		for (inc = fconts + start + match.rm_so; !strchr("<\"", *inc); ++inc);
 		++inc;
 
-		char *inc_path = malloc(strlen(info->conf->proj.inc_dir) + strlen(inc) + 2);
-		sprintf(inc_path, "%s/%s", info->conf->proj.inc_dir, inc);
+		char *inc_path = malloc(strlen(info->conf->inc_dir) + strlen(inc) + 2);
+		sprintf(inc_path, "%s/%s", info->conf->inc_dir, inc);
 		strlist_add(&incs, inc_path);
 		free(inc_path);
 		

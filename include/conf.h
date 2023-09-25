@@ -6,28 +6,24 @@
 #include "util.h"
 
 struct conf {
-	struct {
-		char *cc, *ld;
-		char *cflags, *ldflags;
-	} tc;
+	// toolchain.
+	char *cc, *ld;
+	char *cflags, *ldflags;
 
-	struct {
-		char *cc_inc_fmt, *ld_lib_fmt, *ld_obj_fmt;
-		char *cc_cmd_fmt, *ld_cmd_fmt;
-		int cc_success_rc, ld_success_rc;
-	} tc_info;
+	// project.
+	char *src_dir, *inc_dir, *lib_dir;
+	bool produce_output;
+	char *output;
+	struct strlist src_exts, hdr_exts;
 
-	struct {
-		char *src_dir, *inc_dir, *lib_dir;
-		bool produce_output;
-		char *output;
-		struct strlist src_exts, hdr_exts;
-	} proj;
+	// dependencies.
+	struct strlist incs;
+	struct strlist libs;
 
-	struct {
-		struct strlist incs;
-		struct strlist libs;
-	} deps;
+	// toolchain information.
+	char *cc_inc_fmt, *ld_lib_fmt, *ld_obj_fmt;
+	char *cc_cmd_fmt, *ld_cmd_fmt;
+	int cc_success_rc, ld_success_rc;
 };
 
 struct conf conf_from_file(char const *file);

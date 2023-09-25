@@ -99,11 +99,11 @@ worker(void *vp_arg)
 		mkdir_recursive(obj);
 		rmdir(obj);
 
-		char *cmd = fmt_str(arg->spec, arg->conf->tc_info.cc_cmd_fmt, &data);
+		char *cmd = fmt_str(arg->spec, arg->conf->cc_cmd_fmt, &data);
 		int rc = system(cmd);
 		free(cmd);
 		
-		if (rc != arg->conf->tc_info.cc_success_rc) {
+		if (rc != arg->conf->cc_success_rc) {
 			fprintf(stderr, "compilation failed on file: '%s'!\n", src);
 			exit(1);
 		}
@@ -116,7 +116,7 @@ static void
 fmt_command(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	char *cc = sanitize_path(data->conf->tc.cc);
+	char *cc = sanitize_path(data->conf->cc);
 	string_push_str(out_cmd, cc);
 	free(cc);
 }
@@ -125,7 +125,7 @@ static void
 fmt_cflags(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
-	string_push_str(out_cmd, data->conf->tc.cflags);
+	string_push_str(out_cmd, data->conf->cflags);
 }
 
 static void
@@ -159,14 +159,14 @@ fmt_includes(struct string *out_cmd, void *vp_data)
 {
 	struct fmtdata const *data = vp_data;
 	
-	struct strlist incs = strlist_copy(&data->conf->deps.incs);
-	strlist_add(&incs, data->conf->proj.inc_dir);
+	struct strlist incs = strlist_copy(&data->conf->incs);
+	strlist_add(&incs, data->conf->inc_dir);
 
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'i', inc_fmt_include);
 	
 	for (size_t i = 0; i < incs.size; ++i) {
-		fmt_inplace(out_cmd, &spec, data->conf->tc_info.cc_inc_fmt, incs.data[i]);
+		fmt_inplace(out_cmd, &spec, data->conf->cc_inc_fmt, incs.data[i]);
 		if (i < incs.size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
