@@ -12,6 +12,7 @@
 
 #define RAWKEY_BUF_SIZE 64
 #define RAWVAL_BUF_SIZE 1024
+#define SCANFMT "%64s = %1024[^\r\n]"
 
 static ssize_t getraw(FILE *fp, char const *key, char out_vbuf[]);
 static char *getstr(FILE *fp, char const *key);
@@ -135,7 +136,7 @@ getraw(FILE *fp, char const *key, char out_vbuf[])
 
 		fseek(fp, -1, SEEK_CUR);
 		char kbuf[RAWKEY_BUF_SIZE];
-		if (fscanf(fp, "%s = %[^\n]", kbuf, out_vbuf) != 2) {
+		if (fscanf(fp, SCANFMT, kbuf, out_vbuf) != 2) {
 			fprintf(stderr, "error on line %zu of configuration!\n", line);
 			exit(1);
 		}
