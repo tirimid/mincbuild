@@ -11,7 +11,7 @@
 
 #define DEFAULT_CONF "mincbuild.conf"
 
-bool flag_v = false;
+bool flag_r = false, flag_v = false;
 
 static void usage(char const *name);
 
@@ -19,11 +19,14 @@ int
 main(int argc, char const *argv[])
 {
 	int ch;
-	while ((ch = getopt(argc, (char *const *)argv, "hv")) != -1) {
+	while ((ch = getopt(argc, (char *const *)argv, "hrv")) != -1) {
 		switch (ch) {
 		case 'h':
 			usage(argv[0]);
 			return 0;
+		case 'r':
+			flag_r = true;
+			break;
 		case 'v':
 			flag_v = true;
 			break;
@@ -45,7 +48,10 @@ main(int argc, char const *argv[])
 	conf_validate(&conf);
 	
 	struct strlist srcs = extfind(conf.src_dir, &conf.src_exts);
-	struct strlist hdrs = extfind(conf.inc_dir, &conf.hdr_exts);
+	
+	struct strlist hdrs;
+	if (!flag_r)
+		hdrs = extfind(conf.inc_dir, &conf.hdr_exts);
 
 	struct strlist objs = strlist_create();
 	size_t src_dir_len = strlen(conf.src_dir);
@@ -59,9 +65,11 @@ main(int argc, char const *argv[])
 		strlist_add(&objs, obj);
 		free(obj);
 	}
-	
-	prune(&conf, &srcs, &objs, &hdrs);
-	strlist_destroy(&hdrs);
+
+	if (!flag_r) {
+		prune(&conf, &srcs, &objs, &hdrs);
+		strlist_destroy(&hdrs);
+	}
 	
 	compile(&conf, &srcs, &objs);
 	strlist_destroy(&srcs);
@@ -82,5 +90,6 @@ usage(char const *name)
 	       "\t%s [options] [build config]\n"
 	       "options:\n"
 	       "\t-h  display this menu\n"
+	       "\t-r  force rebuild by skipping pruning phase of build\n"
 	       "\t-v  write verbose build information\n", name);
 }
