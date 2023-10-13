@@ -1,5 +1,6 @@
 #include "link.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +14,8 @@ struct fmtdata {
 	struct strlist const *objs;
 };
 
+extern bool flag_v;
+
 static void fmt_command(struct string *out_cmd, void *vp_data);
 static void fmt_ldflags(struct string *out_cmd, void *vp_data);
 static void obj_fmt_object(struct string *out_cmd, void *vp_data);
@@ -25,7 +28,7 @@ void
 linkobjs(struct conf const *conf)
 {
 	puts("linking project");
-
+	
 	// get all project object files, including those omitted during
 	// compilation.
 	struct strlist obj_exts = strlist_create();
@@ -51,6 +54,11 @@ linkobjs(struct conf const *conf)
 	char *cmd = fmt_str(&spec, conf->ld_cmd_fmt, &data);
 	fmt_spec_destroy(&spec);
 	strlist_destroy(&objs);
+
+	if (flag_v)
+		printf("(+)\t%s\t<- %s\n", conf->output, cmd);
+	else
+		printf("(+)\t%s\n", conf->output);
 	
 	int rc = system(cmd);
 	free(cmd);

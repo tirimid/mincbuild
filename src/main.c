@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <unistd.h>
+
 #include "compile.h"
 #include "conf.h"
 #include "link.h"
@@ -9,15 +11,37 @@
 
 #define DEFAULT_CONF "mincbuild.conf"
 
+bool flag_v = false;
+
+static void usage(char const *name);
+
 int
 main(int argc, char const *argv[])
 {
-	if (argc > 2) {
-		fprintf(stderr, "usage: %s [build config file]\n", argv[0]);
+	int ch;
+	while ((ch = getopt(argc, (char *const *)argv, "hv")) != -1) {
+		switch (ch) {
+		case 'h':
+			usage(argv[0]);
+			return 0;
+		case 'v':
+			flag_v = true;
+			break;
+		default:
+			return 1;
+		}
+	}
+
+	int firstarg = 1;
+	while (firstarg < argc && *argv[firstarg] == '-')
+		++firstarg;
+	
+	if (argc > firstarg + 1) {
+		fprintf(stderr, "usage: %s [options] [build config]\n", argv[0]);
 		return 1;
 	}
 	
-	struct conf conf = conf_from_file(argc == 2 ? argv[1] : DEFAULT_CONF);
+	struct conf conf = conf_from_file(argc == firstarg + 1 ? argv[firstarg] : DEFAULT_CONF);
 	conf_validate(&conf);
 	
 	struct strlist srcs = extfind(conf.src_dir, &conf.src_exts);
@@ -49,4 +73,14 @@ main(int argc, char const *argv[])
 	conf_destroy(&conf);
 	
 	return 0;
+}
+
+static void
+usage(char const *name)
+{
+	printf("usage:\n"
+	       "\t%s [options] [build config]\n"
+	       "options:\n"
+	       "\t-h  display this menu\n"
+	       "\t-v  write verbose build information\n", name);
 }

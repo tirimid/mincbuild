@@ -1,5 +1,6 @@
 #include "compile.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +21,8 @@ struct fmtdata {
 	struct conf const *conf;
 	char const *src, *obj;
 };
+
+extern bool flag_v;
 
 static void *worker(void *vp_arg);
 static void fmt_command(struct string *out_cmd, void *vp_data);
@@ -88,7 +91,6 @@ worker(void *vp_arg)
 
 	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
 		char const *src = arg->srcs->data[i], *obj = arg->objs->data[i];
-		printf("(%zu/%zu)\t%s\n", ++*arg->out_progress, arg->srcs->size, obj);
 		
 		struct fmtdata data = {
 			.conf = arg->conf,
@@ -100,6 +102,15 @@ worker(void *vp_arg)
 		rmdir(obj);
 
 		char *cmd = fmt_str(arg->spec, arg->conf->cc_cmd_fmt, &data);
+
+		if (flag_v) {
+			printf("(%zu/%zu)\t%s\t<- %s\n", ++*arg->out_progress,
+			       arg->srcs->size, obj, cmd);
+		} else {
+			printf("(%zu/%zu)\t%s\n", ++*arg->out_progress,
+			       arg->srcs->size, obj);
+		}
+		
 		int rc = system(cmd);
 		free(cmd);
 		
