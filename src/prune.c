@@ -164,10 +164,11 @@ ckrebuild(char const *path, struct strlist *ckdincs, struct rebuildck_info const
 	regoff_t start = 0;
 	regmatch_t match;
 	while (!regexec(info->re, fconts + start, 1, &match, 0)) {
-		char *inc;
-
 		fconts[start + match.rm_eo - 1] = 0;
-		for (inc = fconts + start + match.rm_so; !strchr("<\"", *inc); ++inc);
+
+		char *inc = fconts + start + match.rm_so;
+		while (!strchr("<\"", *inc))
+			++inc;
 		++inc;
 
 		char *inc_path = malloc(strlen(info->conf->inc_dir) + strlen(inc) + 2);

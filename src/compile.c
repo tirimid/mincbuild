@@ -87,6 +87,7 @@ compile(struct conf const *conf, struct strlist const *srcs, struct strlist cons
 static void *
 worker(void *vp_arg)
 {
+	static pthread_mutex_t mutex;
 	struct tharg *arg = vp_arg;
 
 	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
@@ -103,13 +104,16 @@ worker(void *vp_arg)
 
 		char *cmd = fmt_str(arg->spec, arg->conf->cc_cmd_fmt, &data);
 
-		if (flag_v) {
-			printf("(%zu/%zu)\t%s\t<- %s\n", ++*arg->out_progress,
-			       arg->srcs->size, obj, cmd);
-		} else {
-			printf("(%zu/%zu)\t%s\n", ++*arg->out_progress,
-			       arg->srcs->size, obj);
-		}
+		// lock mutex during incrementing the progress output.
+		// it should be fine anyway, but this just guarantees the
+		// accuracy of the progress messages.
+		pthread_mutex_lock(&mutex);
+		++*arg->out_progress;
+		if (flag_v)
+			printf("(%zu/%zu)\t%s\t<- %s\n", *arg->out_progress, arg->srcs->size, obj, cmd);
+		else
+			printf("(%zu/%zu)\t%s\n", *arg->out_progress, arg->srcs->size, obj);
+		pthread_mutex_unlock(&mutex);
 		
 		int rc = system(cmd);
 		free(cmd);
