@@ -36,8 +36,11 @@ main(int argc, char const *argv[])
 	}
 
 	int firstarg = 1;
-	while (firstarg < argc && *argv[firstarg] == '-')
+	while (firstarg < argc
+	       && *argv[firstarg] == '-'
+	       && strcmp(argv[firstarg - 1], "--")) {
 		++firstarg;
+	}
 	
 	if (argc > firstarg + 1) {
 		fprintf(stderr, "usage: %s [options] [build config]\n", argv[0]);
