@@ -4,10 +4,6 @@
 mincbuild, or (Min)imal (C) (Build)system, is a highly minimal program which
 builds a C(++) project with a simple directory structure.
 
-Honestly, the only person this is intended for is myself, but if you know me
-personally and would like to use it; ask me and I will explain it to you. Maybe
-I'll write a guide some day.
-
 ## Dependencies
 mincbuild is designed for Linux. Do not expect it to work (or even compile) on
 your Windows machine.
