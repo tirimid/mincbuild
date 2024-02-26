@@ -9,9 +9,9 @@
 
 #include "util.h"
 
-struct fmtdata {
+struct fmt_data {
 	struct conf const *conf;
-	struct strlist const *objs;
+	struct str_list const *objs;
 };
 
 extern bool flag_v;
@@ -25,17 +25,17 @@ static void lib_fmt_library(struct string *out_cmd, void *vp_data);
 static void fmt_libraries(struct string *out_cmd, void *vp_data);
 
 void
-linkobjs(struct conf const *conf)
+link_objs(struct conf const *conf)
 {
 	puts("linking project");
 	
 	// get all project object files, including those omitted during
 	// compilation.
-	struct strlist obj_exts = strlist_create();
-	strlist_add(&obj_exts, "o");
-	struct strlist objs = extfind(conf->lib_dir, &obj_exts);
-	strlist_destroy(&obj_exts);
-
+	struct str_list obj_exts = str_list_create();
+	str_list_add(&obj_exts, "o");
+	struct str_list objs = ext_find(conf->lib_dir, &obj_exts);
+	str_list_destroy(&obj_exts);
+	
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'c', fmt_command);
 	fmt_spec_add_ent(&spec, 'f', fmt_ldflags);
@@ -43,7 +43,7 @@ linkobjs(struct conf const *conf)
 	fmt_spec_add_ent(&spec, 'b', fmt_output);
 	fmt_spec_add_ent(&spec, 'l', fmt_libraries);
 
-	struct fmtdata data = {
+	struct fmt_data data = {
 		.conf = conf,
 		.objs = &objs,
 	};
@@ -53,7 +53,7 @@ linkobjs(struct conf const *conf)
 
 	char *cmd = fmt_str(&spec, conf->ld_cmd_fmt, &data);
 	fmt_spec_destroy(&spec);
-	strlist_destroy(&objs);
+	str_list_destroy(&objs);
 
 	if (flag_v)
 		printf("(+)\t%s\t<- %s\n", conf->output, cmd);
@@ -72,7 +72,7 @@ linkobjs(struct conf const *conf)
 static void
 fmt_command(struct string *out_cmd, void *vp_data)
 {
-	struct fmtdata const *data = vp_data;
+	struct fmt_data const *data = vp_data;
 	char *ld = sanitize_path(data->conf->ld);
 	string_push_str(out_cmd, ld);
 	free(ld);
@@ -81,7 +81,7 @@ fmt_command(struct string *out_cmd, void *vp_data)
 static void
 fmt_ldflags(struct string *out_cmd, void *vp_data)
 {
-	struct fmtdata const *data = vp_data;
+	struct fmt_data const *data = vp_data;
 	string_push_str(out_cmd, data->conf->ldflags);
 }
 
@@ -96,13 +96,15 @@ obj_fmt_object(struct string *out_cmd, void *vp_data)
 static void
 fmt_objects(struct string *out_cmd, void *vp_data)
 {
-	struct fmtdata const *data = vp_data;
+	struct fmt_data const *data = vp_data;
 
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'o', obj_fmt_object);
 	
 	for (size_t i = 0; i < data->objs->size; ++i) {
-		fmt_inplace(out_cmd, &spec, data->conf->ld_obj_fmt, data->objs->data[i]);
+		fmt_inplace(out_cmd, &spec, data->conf->ld_obj_fmt,
+		            data->objs->data[i]);
+		
 		if (i < data->objs->size - 1)
 			string_push_ch(out_cmd, ' ');
 	}
@@ -113,7 +115,7 @@ fmt_objects(struct string *out_cmd, void *vp_data)
 static void
 fmt_output(struct string *out_cmd, void *vp_data)
 {
-	struct fmtdata const *data = vp_data;
+	struct fmt_data const *data = vp_data;
 	char *output = sanitize_path(data->conf->output);
 	string_push_str(out_cmd, output);
 	free(output);
@@ -128,13 +130,15 @@ lib_fmt_library(struct string *out_cmd, void *vp_data)
 static void
 fmt_libraries(struct string *out_cmd, void *vp_data)
 {
-	struct fmtdata const *data = vp_data;
+	struct fmt_data const *data = vp_data;
 
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'l', lib_fmt_library);
 	
 	for (size_t i = 0; i < data->conf->libs.size; ++i) {
-		fmt_inplace(out_cmd, &spec, data->conf->ld_lib_fmt, data->conf->libs.data[i]);
+		fmt_inplace(out_cmd, &spec, data->conf->ld_lib_fmt,
+		            data->conf->libs.data[i]);
+		
 		if (i < data->conf->libs.size - 1)
 			string_push_ch(out_cmd, ' ');
 	}

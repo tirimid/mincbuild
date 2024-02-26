@@ -1,8 +1,8 @@
-#ifndef LINK_H__
-#define LINK_H__
+#ifndef LINK_H
+#define LINK_H
 
 #include "conf.h"
 
-void linkobjs(struct conf const *conf);
+void link_objs(struct conf const *conf);
 
 #endif

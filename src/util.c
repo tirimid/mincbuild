@@ -51,10 +51,10 @@ string_to_str(struct string const *s)
 	return strndup(s->str, s->len);
 }
 
-struct strlist
-strlist_create(void)
+struct str_list
+str_list_create(void)
 {
-	return (struct strlist){
+	return (struct str_list){
 		.data = malloc(sizeof(char *)),
 		.size = 0,
 		.cap = 1,
@@ -62,7 +62,7 @@ strlist_create(void)
 }
 
 void
-strlist_destroy(struct strlist *s)
+str_list_destroy(struct str_list *s)
 {
 	for (size_t i = 0; i < s->size; ++i)
 		free(s->data[i]);
@@ -70,19 +70,19 @@ strlist_destroy(struct strlist *s)
 	free(s->data);
 }
 
-struct strlist
-strlist_copy(struct strlist const *s)
+struct str_list
+str_list_copy(struct str_list const *s)
 {
-	struct strlist cp = strlist_create();
+	struct str_list cp = str_list_create();
 
 	for (size_t i = 0; i < s->size; ++i)
-		strlist_add(&cp, s->data[i]);
+		str_list_add(&cp, s->data[i]);
 
 	return cp;
 }
 
 void
-strlist_add(struct strlist *s, char const *new)
+str_list_add(struct str_list *s, char const *new)
 {
 	if (s->size >= s->cap) {
 		s->cap *= 2;
@@ -93,21 +93,21 @@ strlist_add(struct strlist *s, char const *new)
 }
 
 void
-strlist_rm(struct strlist *s, size_t ind)
+str_list_rm(struct str_list *s, size_t ind)
 {
 	free(s->data[ind]);
-	strlist_rm_no_free(s, ind);
+	str_list_rm_no_free(s, ind);
 }
 
 void
-strlist_rm_no_free(struct strlist *s, size_t ind)
+str_list_rm_no_free(struct str_list *s, size_t ind)
 {
 	size_t mv_size = (s->size-- - ind) * sizeof(char *);
 	memmove(s->data + ind, s->data + ind + 1, mv_size);
 }
 
 bool
-strlist_contains(struct strlist const *s, char const *str)
+str_list_contains(struct str_list const *s, char const *str)
 {
 	for (size_t i = 0; i < s->size; ++i) {
 		if (!strcmp(str, s->data[i]))
@@ -134,7 +134,8 @@ fmt_spec_destroy(struct fmt_spec *f)
 }
 
 void
-fmt_spec_add_ent(struct fmt_spec *f, char ch, void (*fn)(struct string *, void *))
+fmt_spec_add_ent(struct fmt_spec *f, char ch,
+                 void (*fn)(struct string *, void *))
 {
 	if (f->size >= f->cap) {
 		f->cap *= 2;
@@ -156,7 +157,8 @@ fmt_string(struct fmt_spec const *f, char const *fmt, void *data)
 }
 
 void
-fmt_inplace(struct string *out_str, struct fmt_spec const *f, char const *fmt, void *data)
+fmt_inplace(struct string *out_str, struct fmt_spec const *f, char const *fmt,
+            void *data)
 {
 	for (size_t i = 0, fmt_len = strlen(fmt), j; i < fmt_len; ++i) {
 		if (fmt[i] != FMT_SPEC_CH) {
@@ -226,8 +228,8 @@ sanitize_path(char const *path)
 	return san_path_str;
 }
 
-struct strlist
-extfind(char *dir, struct strlist const *exts)
+struct str_list
+ext_find(char *dir, struct str_list const *exts)
 {
 	unsigned long fts_opts = FTS_LOGICAL | FTS_COMFOLLOW | FTS_NOCHDIR;
 	char *const fts_dirs[] = {dir, NULL};
@@ -238,7 +240,7 @@ extfind(char *dir, struct strlist const *exts)
 		exit(1);
 	}
 
-	struct strlist files = strlist_create();
+	struct str_list files = str_list_create();
 
 	if (!fts_children(fts_p, 0))
 		return files;
@@ -251,8 +253,8 @@ extfind(char *dir, struct strlist const *exts)
 		char const *ext = strrchr(fts_ent->fts_path, '.');
 		ext = ext && ext != fts_ent->fts_path ? ext + 1 : "\0";
 
-		if (strlist_contains(exts, ext))
-			strlist_add(&files, fts_ent->fts_path);
+		if (str_list_contains(exts, ext))
+			str_list_add(&files, fts_ent->fts_path);
 	}
 
 	fts_close(fts_p);

@@ -1,5 +1,5 @@
-#ifndef UTIL_H__
-#define UTIL_H__
+#ifndef UTIL_H
+#define UTIL_H
 
 #include <stdbool.h>
 #include <stddef.h>
@@ -9,7 +9,7 @@ struct string {
 	size_t len, cap;
 };
 
-struct strlist {
+struct str_list {
 	char **data;
 	size_t size, cap;
 };
@@ -30,13 +30,13 @@ void string_push_ch(struct string *s, char ch);
 void string_push_str(struct string *s, char const *str);
 char *string_to_str(struct string const *s);
 
-struct strlist strlist_create(void);
-void strlist_destroy(struct strlist *s);
-struct strlist strlist_copy(struct strlist const *s);
-void strlist_add(struct strlist *s, char const *new);
-void strlist_rm(struct strlist *s, size_t ind);
-void strlist_rm_no_free(struct strlist *s, size_t ind);
-bool strlist_contains(struct strlist const *s, char const *str);
+struct str_list str_list_create(void);
+void str_list_destroy(struct str_list *s);
+struct str_list str_list_copy(struct str_list const *s);
+void str_list_add(struct str_list *s, char const *new);
+void str_list_rm(struct str_list *s, size_t ind);
+void str_list_rm_no_free(struct str_list *s, size_t ind);
+bool str_list_contains(struct str_list const *s, char const *str);
 
 struct fmt_spec fmt_spec_create(void);
 void fmt_spec_destroy(struct fmt_spec *f);
@@ -47,6 +47,6 @@ char *fmt_str(struct fmt_spec const *f, char const *fmt, void *data);
 
 void mkdir_recursive(char const *dir);
 char *sanitize_path(char const *path);
-struct strlist extfind(char *dir, struct strlist const *exts);
+struct str_list ext_find(char *dir, struct str_list const *exts);
 
 #endif

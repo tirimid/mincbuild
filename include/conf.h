@@ -1,5 +1,5 @@
-#ifndef CONF_H__
-#define CONF_H__
+#ifndef CONF_H
+#define CONF_H
 
 #include <stdbool.h>
 
@@ -14,11 +14,11 @@ struct conf {
 	char *src_dir, *inc_dir, *lib_dir;
 	bool produce_output;
 	char *output;
-	struct strlist src_exts, hdr_exts;
+	struct str_list src_exts, hdr_exts;
 
 	// dependencies.
-	struct strlist incs;
-	struct strlist libs;
+	struct str_list incs;
+	struct str_list libs;
 
 	// toolchain information.
 	char *cc_inc_fmt, *ld_lib_fmt, *ld_obj_fmt;
@@ -27,6 +27,7 @@ struct conf {
 };
 
 struct conf conf_from_file(char const *file);
+void conf_apply_overrides(struct conf *conf);
 void conf_validate(struct conf const *conf);
 void conf_destroy(struct conf *conf);
 

@@ -35,28 +35,29 @@ main(int argc, char const *argv[])
 		}
 	}
 
-	int firstarg = 1;
-	while (firstarg < argc
-	       && *argv[firstarg] == '-'
-	       && strcmp(argv[firstarg - 1], "--")) {
-		++firstarg;
+	int first_arg = 1;
+	while (first_arg < argc
+	       && *argv[first_arg] == '-'
+	       && strcmp(argv[first_arg - 1], "--")) {
+		++first_arg;
 	}
 	
-	if (argc > firstarg + 1) {
+	if (argc > first_arg + 1) {
 		fprintf(stderr, "usage: %s [options] [build config]\n", argv[0]);
 		return 1;
 	}
 	
-	struct conf conf = conf_from_file(argc == firstarg + 1 ? argv[firstarg] : DEFAULT_CONF);
+	struct conf conf = conf_from_file(argc == first_arg + 1 ? argv[first_arg] : DEFAULT_CONF);
+	conf_apply_overrides(&conf);
 	conf_validate(&conf);
 	
-	struct strlist srcs = extfind(conf.src_dir, &conf.src_exts);
+	struct str_list srcs = ext_find(conf.src_dir, &conf.src_exts);
 	
-	struct strlist hdrs;
+	struct str_list hdrs;
 	if (!flag_r)
-		hdrs = extfind(conf.inc_dir, &conf.hdr_exts);
+		hdrs = ext_find(conf.inc_dir, &conf.hdr_exts);
 
-	struct strlist objs = strlist_create();
+	struct str_list objs = str_list_create();
 	size_t src_dir_len = strlen(conf.src_dir);
 	size_t lib_dir_len = strlen(conf.lib_dir);
 	for (size_t i = 0; i < srcs.size; ++i) {
@@ -65,21 +66,21 @@ main(int argc, char const *argv[])
 
 		char *obj = malloc(lib_dir_len + strlen(src) + 4);
 		sprintf(obj, "%s/%s.o", conf.lib_dir, src);
-		strlist_add(&objs, obj);
+		str_list_add(&objs, obj);
 		free(obj);
 	}
 
 	if (!flag_r) {
 		prune(&conf, &srcs, &objs, &hdrs);
-		strlist_destroy(&hdrs);
+		str_list_destroy(&hdrs);
 	}
 	
 	compile(&conf, &srcs, &objs);
-	strlist_destroy(&srcs);
-	strlist_destroy(&objs);
+	str_list_destroy(&srcs);
+	str_list_destroy(&objs);
 
 	if (conf.produce_output)
-		linkobjs(&conf);
+		link_objs(&conf);
 
 	conf_destroy(&conf);
 	
