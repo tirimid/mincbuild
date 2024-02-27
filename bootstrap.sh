@@ -1,5 +1,5 @@
 CC=gcc
-CFLAGS="-std=c99 -pedantic -Iinclude -D_POSIX_C_SOURCE=200809"
+CFLAGS="-std=c99 -pedantic -Iinclude -D_POSIX_C_SOURCE=200809 -D_GNU_SOURCE"
 LIBS="-lpthread"
 
 OUT_NAME=mincbuild
