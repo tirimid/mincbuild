@@ -115,7 +115,7 @@ static void *
 worker(void *vp_arg)
 {
 #ifndef COMPILE_SINGLE_THREAD
-	static pthread_mutex_t mutex;
+	static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 #endif
 	
 	struct thread_arg *arg = vp_arg;

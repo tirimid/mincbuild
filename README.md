@@ -34,6 +34,6 @@ After installation,
 ## Contributing
 
 I am not accepting pull requests unless they refactor code to make it smaller
-and more readable. I am definitely not accepting pull requests which implement
-features unless I *really* like them. Feel free to fork this project and make
-your own version.
+and more readable, or maybe fix minor bugs. If you have feature / large bugfix
+proposals, please contact me (through email or otherwise) and suggest them. Feel
+free to fork this project and make your own version.

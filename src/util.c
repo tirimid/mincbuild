@@ -102,7 +102,7 @@ str_list_rm(struct str_list *s, size_t ind)
 void
 str_list_rm_no_free(struct str_list *s, size_t ind)
 {
-	size_t mv_size = (s->size-- - ind) * sizeof(char *);
+	size_t mv_size = (--s->size - ind) * sizeof(char *);
 	memmove(s->data + ind, s->data + ind + 1, mv_size);
 }
 

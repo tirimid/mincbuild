@@ -12,7 +12,7 @@
 
 #define RAW_KEY_BUF_SIZE 64
 #define RAW_VAL_BUF_SIZE 1024
-#define SCAN_FMT "%64s = %1024[^\r\n]"
+#define SCAN_FMT "%63s = %1023[^\r\n]"
 
 static ssize_t get_raw(FILE *fp, char const *key, char out_vbuf[]);
 static char *get_str(FILE *fp, char const *key);
