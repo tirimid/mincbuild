@@ -141,7 +141,7 @@ worker(void *vp_arg)
 		++*arg->out_progress;
 		printf("(%zu/%zu)\t%s", *arg->out_progress, arg->srcs->size, obj);
 		if (flag_v)
-			printf("\t<- %s\n", cmd);
+			printf("\t<- %s", cmd);
 		puts("");
 		
 #ifndef COMPILE_SINGLE_THREAD
