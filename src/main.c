@@ -19,8 +19,10 @@ int
 main(int argc, char const *argv[])
 {
 	int ch;
-	while ((ch = getopt(argc, (char *const *)argv, "hrv")) != -1) {
-		switch (ch) {
+	while ((ch = getopt(argc, (char *const *)argv, "hrv")) != -1)
+	{
+		switch (ch)
+		{
 		case 'h':
 			usage(argv[0]);
 			return 0;
@@ -38,11 +40,13 @@ main(int argc, char const *argv[])
 	int first_arg = 1;
 	while (first_arg < argc
 	       && *argv[first_arg] == '-'
-	       && strcmp(argv[first_arg - 1], "--")) {
+	       && strcmp(argv[first_arg - 1], "--"))
+	{
 		++first_arg;
 	}
 	
-	if (argc > first_arg + 1) {
+	if (argc > first_arg + 1)
+	{
 		fprintf(stderr, "usage: %s [options] [build config]\n", argv[0]);
 		return 1;
 	}
@@ -60,7 +64,8 @@ main(int argc, char const *argv[])
 	struct str_list objs = str_list_create();
 	size_t src_dir_len = strlen(conf.src_dir);
 	size_t lib_dir_len = strlen(conf.lib_dir);
-	for (size_t i = 0; i < srcs.size; ++i) {
+	for (size_t i = 0; i < srcs.size; ++i)
+	{
 		char const *src = srcs.data[i] + src_dir_len;
 		src += *src == '/';
 
@@ -70,7 +75,8 @@ main(int argc, char const *argv[])
 		free(obj);
 	}
 
-	if (!flag_r) {
+	if (!flag_r)
+	{
 		prune(&conf, &srcs, &objs, &hdrs);
 		str_list_destroy(&hdrs);
 	}

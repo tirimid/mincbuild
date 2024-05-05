@@ -4,22 +4,26 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-struct string {
+struct string
+{
 	char *str;
 	size_t len, cap;
 };
 
-struct str_list {
+struct str_list
+{
 	char **data;
 	size_t size, cap;
 };
 
-struct fmt_spec_ent {
+struct fmt_spec_ent
+{
 	char ch;
 	void (*fn)(struct string *, void *);
 };
 
-struct fmt_spec {
+struct fmt_spec
+{
 	struct fmt_spec_ent *data;
 	size_t size, cap;
 };

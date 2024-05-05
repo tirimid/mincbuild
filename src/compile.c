@@ -13,7 +13,8 @@
 #include <sys/sysinfo.h>
 #endif
 
-struct thread_arg {
+struct thread_arg
+{
 	size_t start, cnt;
 	struct conf const *conf;
 	struct str_list const *srcs, *objs;
@@ -21,7 +22,8 @@ struct thread_arg {
 	struct fmt_spec const *spec;
 };
 
-struct fmt_data {
+struct fmt_data
+{
 	struct conf const *conf;
 	char const *src, *obj;
 };
@@ -51,7 +53,8 @@ compile(struct conf const *conf, struct str_list const *srcs,
 	// multithreaded pthread dependent code.
 	
 	ssize_t cnt = get_nprocs();
-	if (cnt < 1) {
+	if (cnt < 1)
+	{
 		fputs("no CPU threads available for compilation!\n", stderr);
 		exit(1);
 	}
@@ -61,8 +64,10 @@ compile(struct conf const *conf, struct str_list const *srcs,
 	size_t progress = 0;
 	
 	struct thread_arg *th_args = malloc(sizeof(struct thread_arg) * cnt);
-	for (size_t i = 0; i < cnt; ++i) {
-		th_args[i] = (struct thread_arg){
+	for (size_t i = 0; i < cnt; ++i)
+	{
+		th_args[i] = (struct thread_arg)
+		{
 			.conf = conf,
 			.srcs = srcs,
 			.objs = objs,
@@ -75,10 +80,12 @@ compile(struct conf const *conf, struct str_list const *srcs,
 		++th_args[i % cnt].cnt;
 
 	pthread_t *ths = malloc(sizeof(pthread_t) * cnt);
-	for (size_t i = 0; i < cnt; ++i) {
+	for (size_t i = 0; i < cnt; ++i)
+	{
 		struct thread_arg const *prev = i == 0 ? NULL : &th_args[i - 1];
 		th_args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
-		if (pthread_create(&ths[i], NULL, worker, &th_args[i])) {
+		if (pthread_create(&ths[i], NULL, worker, &th_args[i]))
+		{
 			fputs("failed to create worker thread for compilation!\n", stderr);
 			exit(1);
 		}
@@ -95,7 +102,8 @@ compile(struct conf const *conf, struct str_list const *srcs,
 	puts("compiling project in single thread mode");
 	size_t progress = 0;
 	
-	struct thread_arg th_arg = {
+	struct thread_arg th_arg =
+	{
 		.conf = conf,
 		.srcs = srcs,
 		.objs = objs,
@@ -120,10 +128,12 @@ worker(void *vp_arg)
 	
 	struct thread_arg *arg = vp_arg;
 
-	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
+	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i)
+	{
 		char const *src = arg->srcs->data[i], *obj = arg->objs->data[i];
 		
-		struct fmt_data data = {
+		struct fmt_data data =
+		{
 			.conf = arg->conf,
 			.src = src,
 			.obj = obj,
@@ -151,7 +161,8 @@ worker(void *vp_arg)
 		int rc = system(cmd);
 		free(cmd);
 		
-		if (rc != arg->conf->cc_success_rc) {
+		if (rc != arg->conf->cc_success_rc)
+		{
 			fprintf(stderr, "compilation failed on file: '%s'!\n", src);
 			exit(1);
 		}
@@ -213,10 +224,9 @@ fmt_includes(struct string *out_cmd, void *vp_data)
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'i', inc_fmt_include);
 	
-	for (size_t i = 0; i < incs.size; ++i) {
-		fmt_inplace(out_cmd, &spec, data->conf->cc_inc_fmt,
-		            incs.data[i]);
-		
+	for (size_t i = 0; i < incs.size; ++i)
+	{
+		fmt_inplace(out_cmd, &spec, data->conf->cc_inc_fmt, incs.data[i]);
 		if (i < incs.size - 1)
 			string_push_ch(out_cmd, ' ');
 	}

@@ -9,7 +9,8 @@
 
 #include "util.h"
 
-struct fmt_data {
+struct fmt_data
+{
 	struct conf const *conf;
 	struct str_list const *objs;
 };
@@ -43,7 +44,8 @@ link_objs(struct conf const *conf)
 	fmt_spec_add_ent(&spec, 'b', fmt_output);
 	fmt_spec_add_ent(&spec, 'l', fmt_libraries);
 
-	struct fmt_data data = {
+	struct fmt_data data =
+	{
 		.conf = conf,
 		.objs = &objs,
 	};
@@ -63,7 +65,8 @@ link_objs(struct conf const *conf)
 	int rc = system(cmd);
 	free(cmd);
 	
-	if (rc != conf->ld_success_rc) {
+	if (rc != conf->ld_success_rc)
+	{
 		fputs("linking failed!\n", stderr);
 		exit(1);
 	}
@@ -101,7 +104,8 @@ fmt_objects(struct string *out_cmd, void *vp_data)
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'o', obj_fmt_object);
 	
-	for (size_t i = 0; i < data->objs->size; ++i) {
+	for (size_t i = 0; i < data->objs->size; ++i)
+	{
 		fmt_inplace(out_cmd, &spec, data->conf->ld_obj_fmt,
 		            data->objs->data[i]);
 		
@@ -135,7 +139,8 @@ fmt_libraries(struct string *out_cmd, void *vp_data)
 	struct fmt_spec spec = fmt_spec_create();
 	fmt_spec_add_ent(&spec, 'l', lib_fmt_library);
 	
-	for (size_t i = 0; i < data->conf->libs.size; ++i) {
+	for (size_t i = 0; i < data->conf->libs.size; ++i)
+	{
 		fmt_inplace(out_cmd, &spec, data->conf->ld_lib_fmt,
 		            data->conf->libs.data[i]);
 		

@@ -24,7 +24,8 @@
 #define INCLUDE_REGEX "#\\s*include\\s*[<\"].+[>\"]"
 #endif
 
-struct thread_arg {
+struct thread_arg
+{
 	size_t start, cnt;
 	struct conf const *conf;
 	struct str_list *srcs, *objs;
@@ -32,7 +33,8 @@ struct thread_arg {
 	regex_t const *re;
 };
 
-struct rebuild_ck_info {
+struct rebuild_ck_info
+{
 	struct str_list const *hdrs;
 	struct conf const *conf;
 	regex_t const *re;
@@ -47,7 +49,8 @@ prune(struct conf const *conf, struct str_list *srcs, struct str_list *objs,
       struct str_list const *hdrs)
 {
 	regex_t re;
-	if (regcomp(&re, INCLUDE_REGEX, REG_EXTENDED | REG_NEWLINE)) {
+	if (regcomp(&re, INCLUDE_REGEX, REG_EXTENDED | REG_NEWLINE))
+	{
 		fputs("failed to compile regex: '" INCLUDE_REGEX "'!\n", stderr);
 		exit(1);
 	}
@@ -56,7 +59,8 @@ prune(struct conf const *conf, struct str_list *srcs, struct str_list *objs,
 	// multithreaded pthread dependent code.
 	
 	ssize_t cnt = get_nprocs();
-	if (cnt < 1) {
+	if (cnt < 1)
+	{
 		fputs("no CPU threads available for pruning!\n", stderr);
 		exit(1);
 	}
@@ -65,8 +69,10 @@ prune(struct conf const *conf, struct str_list *srcs, struct str_list *objs,
 	printf("pruning compilation with %zu worker(s)\n", cnt);
 	
 	struct thread_arg *th_args = malloc(sizeof(struct thread_arg) * cnt);
-	for (size_t i = 0; i < cnt; ++i) {
-		th_args[i] = (struct thread_arg){
+	for (size_t i = 0; i < cnt; ++i)
+	{
+		th_args[i] = (struct thread_arg)
+		{
 			.conf = conf,
 			.srcs = srcs,
 			.objs = objs,
@@ -80,10 +86,12 @@ prune(struct conf const *conf, struct str_list *srcs, struct str_list *objs,
 
 	// create threads to mark sources / objects for removal in pruning.
 	pthread_t *ths = malloc(sizeof(pthread_t) * cnt);
-	for (size_t i = 0; i < cnt; ++i) {
+	for (size_t i = 0; i < cnt; ++i)
+	{
 		struct thread_arg const *prev = i == 0 ? NULL : &th_args[i - 1];
 		th_args[i].start = i == 0 ? 0 : prev->start + prev->cnt;
-		if (pthread_create(&ths[i], NULL, worker, &th_args[i])) {
+		if (pthread_create(&ths[i], NULL, worker, &th_args[i]))
+		{
 			fputs("failed to create worker thread for pruning!\n", stderr);
 			exit(1);
 		}
@@ -99,7 +107,8 @@ prune(struct conf const *conf, struct str_list *srcs, struct str_list *objs,
 	
 	puts("pruning compilation in single thread mode");
 	
-	struct thread_arg th_arg = {
+	struct thread_arg th_arg =
+	{
 		.conf = conf,
 		.srcs = srcs,
 		.objs = objs,
@@ -115,8 +124,10 @@ prune(struct conf const *conf, struct str_list *srcs, struct str_list *objs,
 	regfree(&re);
 
 	// remove marked sources / objects.
-	for (size_t i = 0; i < srcs->size; ++i) {
-		if (!srcs->data[i]) {
+	for (size_t i = 0; i < srcs->size; ++i)
+	{
+		if (!srcs->data[i])
+		{
 			str_list_rm_no_free(srcs, i);
 			str_list_rm_no_free(objs, i);
 			--i;
@@ -129,7 +140,8 @@ worker(void *vp_arg)
 {
 	struct thread_arg *arg = vp_arg;
 
-	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i) {
+	for (size_t i = arg->start; i < arg->start + arg->cnt; ++i)
+	{
 		struct stat s_src;
 		stat(arg->srcs->data[i], &s_src);
 
@@ -140,7 +152,8 @@ worker(void *vp_arg)
 		time_t mt = s_obj.st_mtime;
 		struct str_list ckd_incs = str_list_create();
 		
-		struct rebuild_ck_info info = {
+		struct rebuild_ck_info info =
+		{
 			.hdrs = arg->hdrs,
 			.conf = arg->conf,
 			.re = arg->re,
@@ -179,7 +192,8 @@ ck_rebuild(char const *path, struct str_list *ckd_incs,
 	struct str_list incs = str_list_create();
 	
 	FILE *fp = fopen(path, "rb");
-	if (!fp) {
+	if (!fp)
+	{
 		fprintf(stderr, "cannot open file for inclusion checks: '%s'!\n", path);
 		exit(1);
 	}
@@ -196,7 +210,8 @@ ck_rebuild(char const *path, struct str_list *ckd_incs,
 
 	regoff_t start = 0;
 	regmatch_t match;
-	while (!regexec(info->re, fconts + start, 1, &match, 0)) {
+	while (!regexec(info->re, fconts + start, 1, &match, 0))
+	{
 		fconts[start + match.rm_eo - 1] = 0;
 
 		char *inc = fconts + start + match.rm_so;
@@ -214,20 +229,24 @@ ck_rebuild(char const *path, struct str_list *ckd_incs,
 
 	free(fconts);
 
-	// remove non-project includes from `incs`, and also includes for
-	// headers which have already been checked, preventing excess resource
-	// usage and hanging with coupled inclusions.
-	for (size_t i = 0; i < incs.size; ++i) {
+	// remove non-project includes from `incs`, and also includes for headers
+	// which have already been checked, preventing excess resource usage and
+	// hanging with coupled inclusions.
+	for (size_t i = 0; i < incs.size; ++i)
+	{
 		if (!str_list_contains(info->hdrs, incs.data[i])
-		    || str_list_contains(ckd_incs, incs.data[i])) {
+		    || str_list_contains(ckd_incs, incs.data[i]))
+		{
 			str_list_rm(&incs, i);
 			--i;
 		}
 	}
 	
-	for (size_t i = 0; i < incs.size && !rebuild; ++i) {
+	for (size_t i = 0; i < incs.size && !rebuild; ++i)
+	{
 		str_list_add(ckd_incs, incs.data[i]);
-		if (ck_rebuild(incs.data[i], ckd_incs, info)) {
+		if (ck_rebuild(incs.data[i], ckd_incs, info))
+		{
 			str_list_destroy(&incs);
 			return true;
 		}

@@ -14,7 +14,8 @@
 struct string
 string_create(void)
 {
-	return (struct string){
+	return (struct string)
+	{
 		.str = malloc(1),
 		.len = 0,
 		.cap = 1,
@@ -30,7 +31,8 @@ string_destroy(struct string *s)
 void
 string_push_ch(struct string *s, char ch)
 {
-	if (s->len >= s->cap) {
+	if (s->len >= s->cap)
+	{
 		s->cap *= 2;
 		s->str = realloc(s->str, s->cap);
 	}
@@ -54,7 +56,8 @@ string_to_str(struct string const *s)
 struct str_list
 str_list_create(void)
 {
-	return (struct str_list){
+	return (struct str_list)
+	{
 		.data = malloc(sizeof(char *)),
 		.size = 0,
 		.cap = 1,
@@ -84,7 +87,8 @@ str_list_copy(struct str_list const *s)
 void
 str_list_add(struct str_list *s, char const *new)
 {
-	if (s->size >= s->cap) {
+	if (s->size >= s->cap)
+	{
 		s->cap *= 2;
 		s->data = realloc(s->data, sizeof(char *) * s->cap);
 	}
@@ -109,7 +113,8 @@ str_list_rm_no_free(struct str_list *s, size_t ind)
 bool
 str_list_contains(struct str_list const *s, char const *str)
 {
-	for (size_t i = 0; i < s->size; ++i) {
+	for (size_t i = 0; i < s->size; ++i)
+	{
 		if (!strcmp(str, s->data[i]))
 			return true;
 	}
@@ -120,7 +125,8 @@ str_list_contains(struct str_list const *s, char const *str)
 struct fmt_spec
 fmt_spec_create(void)
 {
-	return (struct fmt_spec){
+	return (struct fmt_spec)
+	{
 		.data = malloc(sizeof(struct fmt_spec_ent)),
 		.size = 0,
 		.cap = 1,
@@ -137,12 +143,14 @@ void
 fmt_spec_add_ent(struct fmt_spec *f, char ch,
                  void (*fn)(struct string *, void *))
 {
-	if (f->size >= f->cap) {
+	if (f->size >= f->cap)
+	{
 		f->cap *= 2;
 		f->data = realloc(f->data, sizeof(struct fmt_spec_ent) * f->cap);
 	}
 
-	f->data[f->size++] = (struct fmt_spec_ent){
+	f->data[f->size++] = (struct fmt_spec_ent)
+	{
 		.ch = ch,
 		.fn = fn,
 	};
@@ -160,18 +168,24 @@ void
 fmt_inplace(struct string *out_str, struct fmt_spec const *f, char const *fmt,
             void *data)
 {
-	for (size_t i = 0, fmt_len = strlen(fmt), j; i < fmt_len; ++i) {
-		if (fmt[i] != FMT_SPEC_CH) {
+	for (size_t i = 0, fmt_len = strlen(fmt), j; i < fmt_len; ++i)
+	{
+		if (fmt[i] != FMT_SPEC_CH)
+		{
 			string_push_ch(out_str, fmt[i]);
 			continue;
 		}
 
 		++i;
-		for (j = 0; j < f->size; ++j) {
-			if (!fmt[i] || fmt[i] == FMT_SPEC_CH) {
+		for (j = 0; j < f->size; ++j)
+		{
+			if (!fmt[i] || fmt[i] == FMT_SPEC_CH)
+			{
 				string_push_ch(out_str, FMT_SPEC_CH);
 				break;
-			} else if (fmt[i] == f->data[j].ch) {
+			}
+			else if (fmt[i] == f->data[j].ch)
+			{
 				f->data[j].fn(out_str, data);
 				break;
 			}
@@ -197,8 +211,10 @@ mkdir_recursive(char const *dir)
 {
 	struct string path_build = string_create();
 
-	for (char const *c = dir; *c; ++c) {
-		if (*c == '/') {
+	for (char const *c = dir; *c; ++c)
+	{
+		if (*c == '/')
+		{
 			char *pstr = string_to_str(&path_build);
 			mkdir(pstr, S_IRWXU | S_IRWXG | S_IRWXO);
 			free(pstr);
@@ -215,7 +231,8 @@ sanitize_path(char const *path)
 {
 	struct string san_path = string_create();
 
-	for (char const *c = path; *c; ++c) {
+	for (char const *c = path; *c; ++c)
+	{
 		if (strchr(SANITIZE_ESCAPE, *c))
 			string_push_ch(&san_path, '\\');
 		
@@ -235,7 +252,8 @@ ext_find(char *dir, struct str_list const *exts)
 	char *const fts_dirs[] = {dir, NULL};
 	FTS *fts_p = fts_open(fts_dirs, fts_opts, NULL);
 
-	if (!fts_p) {
+	if (!fts_p)
+	{
 		fputs("failed to fts_open()!\n", stderr);
 		exit(1);
 	}
@@ -246,7 +264,8 @@ ext_find(char *dir, struct str_list const *exts)
 		return files;
 
 	FTSENT *fts_ent;
-	while (fts_ent = fts_read(fts_p)) {
+	while (fts_ent = fts_read(fts_p))
+	{
 		if (fts_ent->fts_info != FTS_F)
 			continue;
 

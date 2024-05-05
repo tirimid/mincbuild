@@ -5,7 +5,8 @@
 
 #include "util.h"
 
-struct conf {
+struct conf
+{
 	// toolchain.
 	char *cc, *ld;
 	char *cflags, *ldflags;

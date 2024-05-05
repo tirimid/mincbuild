@@ -24,7 +24,8 @@ struct conf
 conf_from_file(char const *file)
 {
 	FILE *fp = fopen(file, "rb");
-	if (!fp) {
+	if (!fp)
+	{
 		fprintf(stderr, "cannot open file: '%s'!\n", file);
 		exit(1);
 	}
@@ -47,7 +48,8 @@ conf_from_file(char const *file)
 
 	// then, if output should be produced, get necessary information for
 	// linker to be run after compilation.
-	if (conf.produce_output) {
+	if (conf.produce_output)
+	{
 		conf.ld = get_str(fp, "ld");
 		conf.ldflags = get_str(fp, "ldflags");
 		conf.ld_lib_fmt = get_str(fp, "ld_lib_fmt");
@@ -70,13 +72,15 @@ conf_apply_overrides(struct conf *conf)
 	// than manually editing the conf.
 	
 	char const *cc = secure_getenv("CC");
-	if (cc) {
+	if (cc)
+	{
 		free(conf->cc);
 		conf->cc = strdup(cc);
 	}
 	
 	char const *cflags = secure_getenv("CFLAGS");
-	if (cflags) {
+	if (cflags)
+	{
 		free(conf->cflags);
 		conf->cflags = strdup(cflags);
 	}
@@ -85,13 +89,15 @@ conf_apply_overrides(struct conf *conf)
 		return;
 	
 	char const *ld = secure_getenv("LD");
-	if (ld) {
+	if (ld)
+	{
 		free(conf->ld);
 		conf->ld = strdup(ld);
 	}
 	
 	char const *ldflags = secure_getenv("LDFLAGS");
-	if (ldflags) {
+	if (ldflags)
+	{
 		free(conf->ldflags);
 		conf->ldflags = strdup(ldflags);
 	}
@@ -103,28 +109,33 @@ conf_validate(struct conf const *conf)
 	struct stat s;
 	
 	// make sure project has specified directories.
-	if (stat(conf->src_dir, &s)) {
+	if (stat(conf->src_dir, &s))
+	{
 		fprintf(stderr, "no source directory: '%s'!\n", conf->src_dir);
 		exit(1);
 	}
 
-	if (stat(conf->inc_dir, &s)) {
+	if (stat(conf->inc_dir, &s))
+	{
 		fprintf(stderr, "no include directory, creating: '%s'\n", conf->inc_dir);
 		mkdir_recursive(conf->inc_dir);
 	}
 
-	if (stat(conf->lib_dir, &s)) {
+	if (stat(conf->lib_dir, &s))
+	{
 		fprintf(stderr, "no build directory, creating: '%s'\n", conf->lib_dir);
 		mkdir_recursive(conf->lib_dir);
 	}
 
 	// make sure system has specified compiler and linker.
-	if (stat(conf->cc, &s)) {
+	if (stat(conf->cc, &s))
+	{
 		fprintf(stderr, "compiler not present on system: '%s'!\n", conf->cc);
 		exit(1);
 	}
 
-	if (conf->produce_output && stat(conf->ld, &s)) {
+	if (conf->produce_output && stat(conf->ld, &s))
+	{
 		fprintf(stderr, "linker not present on system: '%s'!\n", conf->ld);
 		exit(1);
 	}
@@ -143,7 +154,8 @@ conf_destroy(struct conf *conf)
 	str_list_destroy(&conf->src_exts);
 	str_list_destroy(&conf->hdr_exts);
 
-	if (conf->produce_output) {
+	if (conf->produce_output)
+	{
 		free(conf->ld);
 		free(conf->ldflags);
 		free(conf->ld_lib_fmt);
@@ -160,7 +172,8 @@ get_raw(FILE *fp, char const *key, char out_vbuf[])
 {
 	fseek(fp, 0, SEEK_SET);
 
-	for (size_t line = 1; !feof(fp) && !ferror(fp); ++line) {
+	for (size_t line = 1; !feof(fp) && !ferror(fp); ++line)
+	{
 		int ch;
 		while ((ch = fgetc(fp)) != EOF && isspace(ch));
 		if (ch == '#')
@@ -170,7 +183,8 @@ get_raw(FILE *fp, char const *key, char out_vbuf[])
 
 		fseek(fp, -1, SEEK_CUR);
 		char kbuf[RAW_KEY_BUF_SIZE];
-		if (fscanf(fp, SCAN_FMT, kbuf, out_vbuf) != 2) {
+		if (fscanf(fp, SCAN_FMT, kbuf, out_vbuf) != 2)
+		{
 			fprintf(stderr, "error on line %zu of configuration!\n", line);
 			exit(1);
 		}
@@ -189,7 +203,8 @@ static char *
 get_str(FILE *fp, char const *key)
 {
 	char vbuf[RAW_VAL_BUF_SIZE];
-	if (get_raw(fp, key, vbuf) == -1) {
+	if (get_raw(fp, key, vbuf) == -1)
+	{
 		fprintf(stderr, "missing string key in configuration: '%s'!\n", key);
 		exit(1);
 	}
@@ -201,7 +216,8 @@ static struct str_list
 get_str_list(FILE *fp, char const *key)
 {
 	char vbuf[RAW_VAL_BUF_SIZE];
-	if (get_raw(fp, key, vbuf) == -1) {
+	if (get_raw(fp, key, vbuf) == -1)
+	{
 		fprintf(stderr, "missing stringlist key in configuration: '%s'!\n", key);
 		exit(1);
 	}
@@ -209,22 +225,28 @@ get_str_list(FILE *fp, char const *key)
 	struct str_list sl = str_list_create();
 	char accum[RAW_VAL_BUF_SIZE];
 	size_t vbuflen = strlen(vbuf), accumlen = 0;
-	for (size_t i = 0; i < vbuflen; ++i) {
-		if (vbuf[i] == '\\') {
+	for (size_t i = 0; i < vbuflen; ++i)
+	{
+		if (vbuf[i] == '\\')
+		{
 			accum[accumlen++] = vbuf[++i];
 			continue;
-		} else if (isspace(vbuf[i]) && accumlen > 0) {
+		}
+		else if (isspace(vbuf[i]) && accumlen > 0)
+		{
 			accum[accumlen] = 0;
 			accumlen = 0;
 			str_list_add(&sl, accum);
-		} else
+		}
+		else
 			accum[accumlen++] = vbuf[i];
 	}
 
 	// last item in strlist won't get pushed unless followed by trailing
 	// whitespace.
 	// fix for this behavior.
-	if (accumlen > 0) {
+	if (accumlen > 0)
+	{
 		accum[accumlen] = 0;
 		str_list_add(&sl, accum);
 	}
@@ -236,7 +258,8 @@ static bool
 get_bool(FILE *fp, char const *key)
 {
 	char vbuf[RAW_VAL_BUF_SIZE];
-	if (get_raw(fp, key, vbuf) == -1) {
+	if (get_raw(fp, key, vbuf) == -1)
+	{
 		fprintf(stderr, "missing bool key in configuration: '%s'!\n", key);
 		exit(1);
 	}
@@ -245,7 +268,8 @@ get_bool(FILE *fp, char const *key)
 		return true;
 	else if (!strcmp("false", vbuf))
 		return false;
-	else {
+	else
+	{
 		fprintf(stderr, "invalid bool value for %s: '%s'!\n", key, vbuf);
 		exit(1);
 	}
@@ -255,13 +279,16 @@ static int
 get_int(FILE *fp, char const *key)
 {
 	char vbuf[RAW_VAL_BUF_SIZE];
-	if (get_raw(fp, key, vbuf) == -1) {
+	if (get_raw(fp, key, vbuf) == -1)
+	{
 		fprintf(stderr, "missing int key in configuration: '%s'!\n", key);
 		exit(1);
 	}
 
-	for (char const *c = vbuf; *c; ++c) {
-		if (!strchr("0123456789-", *c)) {
+	for (char const *c = vbuf; *c; ++c)
+	{
+		if (!strchr("0123456789-", *c))
+		{
 			fprintf(stderr, "invalid int value for %s: '%s'!\n", key, vbuf);
 			exit(1);
 		}
